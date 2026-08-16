@@ -33,11 +33,13 @@ import {
 import { useGameAudio } from './audio/useGameAudio';
 import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
 import { classifyWin } from './presentation/win-tier';
+import { DEFAULT_PRESENTATION_MS, planSpinTiming, type SpinTiming } from './presentation/spin-timing';
 
 const STARTING_BALANCE = 2_000;
-const PRESENTATION_MS = 520;
 const BONUS_AUTOPLAY_GAP_MS = 650;
 const BONUS_AUTOPLAY_WIN_GAP_MS = 1_800;
+/** Extra hold after a feature win so its celebration is readable before the next spin. */
+const BONUS_AUTOPLAY_TIER_TAIL_MS = 420;
 const MIN_SPIN_ENTRY_GAP_MS = 180;
 
 function createUiSeed(): string {
@@ -161,6 +163,7 @@ export function App() {
   const [bonusAutoplay, setBonusAutoplay] = useState(true);
   const [environmentRoute, setEnvironmentRoute] = useState<BonusRoute>();
   const [featureSummary, setFeatureSummary] = useState<PrototypeFeatureSummary>();
+  const [spinTiming, setSpinTiming] = useState<SpinTiming>();
   const presentationTimer = useRef<number | undefined>(undefined);
   const bonusAutoplayTimer = useRef<number | undefined>(undefined);
   const simulationWorker = useRef<Worker | undefined>(undefined);
@@ -170,13 +173,13 @@ export function App() {
   const featureSpinsPlayed = useRef(0);
   const reducedMotion = useReducedMotion();
 
-  const finishPresentation = useCallback((nextPhase: PresentationPhase) => {
+  const finishPresentation = useCallback((nextPhase: PresentationPhase, durationMs: number) => {
     if (presentationTimer.current !== undefined) window.clearTimeout(presentationTimer.current);
     if (reducedMotion) {
       setPhase(nextPhase);
       return;
     }
-    presentationTimer.current = window.setTimeout(() => setPhase(nextPhase), PRESENTATION_MS);
+    presentationTimer.current = window.setTimeout(() => setPhase(nextPhase), durationMs);
   }, [reducedMotion]);
 
   useEffect(() => {
@@ -207,6 +210,14 @@ export function App() {
   }, []);
 
   const showResult = useCallback((result: SpinResult, nextPhase: PresentationPhase) => {
+    // The reel plan is read from the committed result. Anticipation only changes how long
+    // a reel is displayed running; it never selects, delays or alters a landing position.
+    const timing = planSpinTiming({
+      reels: DEFAULT_GAME_CONFIG.reels,
+      scatterReelIndexes: result.scatter.positions.map((position) => position.reel),
+      triggerScatters: DEFAULT_GAME_CONFIG.bonus.triggerScatters,
+    });
+    setSpinTiming(timing);
     setGrid(transposeGrid(result.evaluatedGrid));
     setLastWin(result.totalPayout);
     setHighlightedCells(winningCells(result));
@@ -220,12 +231,15 @@ export function App() {
       lineWins: result.lineWins.length,
       cores: result.scatter.count,
       nextPhase,
+      anticipatedReels: timing.anticipatedReels.filter(Boolean).length,
+      presentationMs: timing.presentationMs,
       rngBefore: result.replay.rngBefore.position,
       rngAfter: result.replay.rngAfter.position,
     });
-    presentAudioResult(result, reducedMotion);
-    finishPresentation(nextPhase);
-  }, [finishPresentation, presentAudioResult, reducedMotion]);
+    playSpinAudio(reducedMotion, timing);
+    presentAudioResult(result, reducedMotion, timing.presentationMs);
+    finishPresentation(nextPhase, timing.presentationMs);
+  }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion]);
 
   const handleSpin = useCallback(() => {
     const now = performance.now();
@@ -241,7 +255,6 @@ export function App() {
       const activeRoute = session.bonusState?.route;
       lastAcceptedSpinAt.current = now;
       recordDiagnostic('spin-start', { mode: 'bonus', route: session.bonusState?.route ?? 'unknown' });
-      playSpinAudio(reducedMotion);
       const transition = spinBonus(session);
       featureTotalWin.current += transition.result.totalPayout;
       featureSpinsPlayed.current += 1;
@@ -265,14 +278,13 @@ export function App() {
     }
     lastAcceptedSpinAt.current = now;
     recordDiagnostic('spin-start', { mode: 'base', balance, wager: session.wager });
-    playSpinAudio(reducedMotion);
     const ordinarySession = session.developerCheat ? { ...session, developerCheat: false } : session;
     const transition = spinBase(ordinarySession);
     setForcedFixture(false);
     setSession(transition.session);
     setBalance((current) => current - ordinarySession.wager + transition.result.totalPayout);
     showResult(transition.result, transition.session.phase === 'bonus-choice' ? 'bonus-choice' : 'result');
-  }, [balance, finishFeatureAudio, phase, playSpinAudio, reducedMotion, session, showResult]);
+  }, [balance, finishFeatureAudio, phase, session, showResult]);
 
   const handleChooseBonus = useCallback((route: BonusRoute) => {
     if (session.phase !== 'bonus-choice') return;
@@ -297,7 +309,11 @@ export function App() {
     const visibleLineCount = Math.min(highlightedPaths.length, MAX_PRESENTED_WIN_PATHS);
     const winSequenceGap = visibleLineCount * WIN_PATH_CYCLE_MS + 200;
     const autoplayGap = lastWin > 0
-      ? Math.max(BONUS_AUTOPLAY_WIN_GAP_MS, winSequenceGap, classifyWin(lastWin, session.wager).durationMs + 180)
+      ? Math.max(
+        BONUS_AUTOPLAY_WIN_GAP_MS,
+        winSequenceGap,
+        classifyWin(lastWin, session.wager).durationMs + BONUS_AUTOPLAY_TIER_TAIL_MS,
+      )
       : BONUS_AUTOPLAY_GAP_MS;
     bonusAutoplayTimer.current = window.setTimeout(() => {
       bonusAutoplayTimer.current = undefined;
@@ -328,6 +344,7 @@ export function App() {
     setLastReplayId(undefined);
     setHighlightedCells([]);
     setHighlightedPaths([]);
+    setSpinTiming(undefined);
     setForcedFixture(false);
     setPhase('ready');
     recordDiagnostic('session-reset', { wager: session.wager });
@@ -341,10 +358,15 @@ export function App() {
 
   const handleScaleWager = useCallback((direction: 'down' | 'up') => {
     if (session.phase !== 'base' || phase === 'spinning') return;
-    const step = session.config.baseWager;
-    const wager = Math.min(session.config.maxWager, Math.max(step, session.wager + (direction === 'up' ? step : -step)));
-    setSession((current) => ({ ...current, wager }));
-  }, [phase, session]);
+    // Derive the next wager inside the updater so a burst of clicks in one React batch
+    // advances once per click instead of collapsing onto a single stale reading.
+    setSession((current) => {
+      if (current.phase !== 'base') return current;
+      const step = current.config.baseWager;
+      const wager = Math.min(current.config.maxWager, Math.max(step, current.wager + (direction === 'up' ? step : -step)));
+      return wager === current.wager ? current : { ...current, wager };
+    });
+  }, [phase, session.phase]);
 
   const handleForceBonus = useCallback(async (cores: 3 | 4 | 5) => {
     if (!import.meta.env.DEV || session.phase !== 'base' || phase === 'spinning') return;
@@ -355,6 +377,7 @@ export function App() {
     setLastReplayId(`DEV-FORCED-${cores}-CORE`);
     setHighlightedCells([]);
     setHighlightedPaths([]);
+    setSpinTiming(undefined);
     setForcedFixture(true);
     setPhase('bonus-choice');
   }, [phase, session]);
@@ -389,8 +412,10 @@ export function App() {
       environmentRoute={environmentRoute}
       featureSummary={featureSummary}
       bonusAutoplay={bonusAutoplay}
+      insufficientCredits={session.phase === 'base' && balance < session.wager}
       winningCells={highlightedCells}
       winningPaths={highlightedPaths}
+      spinTiming={spinTiming}
       simulation={simulation}
       simulationRunning={simulationRunning}
       reducedMotion={reducedMotion}

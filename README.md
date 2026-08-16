@@ -16,7 +16,7 @@ The working prototype includes:
 - a React application shell and PixiJS reel presentation;
 - an original Pelagos Relay environment plus production artwork for the complete eleven-symbol reel family, with procedural fallbacks for asset-loading failures;
 - an original deterministic audio library with grounded relay ambience, Alpha/Bravo feature music, mechanical reel feedback, five result tiers, feature cues, and persistent mixer controls;
-- bounded local diagnostics, rapid-input protection, explicit audio cleanup, and a React recovery screen for investigating long-play failures;
+- bounded local diagnostics, rapid-input protection, explicit audio cleanup, a fully released renderer frame that keeps long sessions within a stable heap, and a React recovery screen for investigating long-play failures;
 - high-volume, route-specific simulation in a Web Worker;
 - theoretical base-game and bonus-frequency analysis plus clearly labeled observed statistics;
 - a development-only QA menu for forcing 3, 4, or 5 CORE bonus offers; and
@@ -83,7 +83,7 @@ If the browser tab crashes, reload the simulator and open **Diagnostics** before
 
 ## Visual and audio status
 
-The production visual, motion, and audio slices are implemented. The game uses original generated runtime artwork for all eleven reel symbols plus base, Relay Alpha, and Relay Bravo Pelagos environments. It presents committed results with staggered reel settling, exact animated payline traces, non-winning-symbol dimming, payout-multiple VFX tiers, big/major win counters, full symbol names in an accessible win ledger, CORE activation, automatic feature spins with Pause/Resume, a completed-feature summary, and a stable reduced-motion path. Ordinary reel art remains free of weak abbreviation overlays; only the functional `CORE` and `WILD` marks are retained.
+The production visual, motion, and audio slices are implemented. The game uses original generated runtime artwork for all eleven reel symbols plus base, Relay Alpha, and Relay Bravo Pelagos environments. It presents committed results with staggered reel settling, Signal Core anticipation that holds the remaining reels while one more Core would still open the feature, exact animated payline traces, non-winning-symbol dimming, payout-multiple VFX tiers, big/major win counters, full symbol names in an accessible win ledger, CORE activation, a Signal Core route choice that opens as a popup over the reels that triggered it, automatic feature spins with Pause/Resume, a completed-feature summary, and a stable reduced-motion path. Ordinary reel art remains free of weak abbreviation overlays; only the functional `CORE` and `WILD` marks are retained.
 
 Twenty original sounds are produced by deterministic 44.1 kHz PCM synthesis and exported as Ogg Vorbis without third-party samples: Pelagos Relay ambience, seamless Alpha/Bravo feature-music loops, a noise-free reel mechanism and latches, payline feedback, five win tiers, Signal Core activation, route confirmations, retrigger, and feature-complete cues. Dry results intentionally add no separate end cue. The Web Audio mixer has persistent master, ambience, music, effects, and mute controls. Audio only presents an already committed result and can fail or remain muted without affecting play. See the [audio design](docs/audio-design.md) for source, cue, and accessibility details.
 

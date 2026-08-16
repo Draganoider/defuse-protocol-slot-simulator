@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import type { WinPresentation } from '../presentation/win-tier';
+import { useCountUp } from './useCountUp';
 
 function formatCredits(value: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
@@ -11,25 +12,7 @@ export function WinCelebration({ payout, presentation, replayId, reducedMotion =
   readonly replayId?: string;
   readonly reducedMotion?: boolean;
 }) {
-  const [shownValue, setShownValue] = useState(reducedMotion ? payout : 0);
-
-  useEffect(() => {
-    if (reducedMotion || presentation.tier === 'none') {
-      setShownValue(payout);
-      return undefined;
-    }
-    const startedAt = performance.now();
-    let frame = 0;
-    const countDuration = Math.min(1_650, presentation.durationMs * 0.72);
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / countDuration);
-      const eased = 1 - ((1 - progress) ** 3);
-      setShownValue(Math.round(payout * eased));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [payout, presentation.durationMs, presentation.tier, reducedMotion, replayId]);
+  const shownValue = useCountUp(payout, presentation.countDurationMs, reducedMotion, replayId);
 
   if (presentation.tier !== 'big' && presentation.tier !== 'major') return null;
   return (

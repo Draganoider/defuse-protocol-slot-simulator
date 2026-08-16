@@ -1,18 +1,28 @@
 import type { BonusRoute, SpinResult } from '../engine';
 import type { ScheduledAudioCue } from './types';
 import { classifyWin } from '../presentation/win-tier';
+import { DEFAULT_PRESENTATION_MS, type SpinTiming } from '../presentation/spin-timing';
 
-export function createSpinCuePlan(reducedMotion = false): readonly ScheduledAudioCue[] {
+const REELS = 5;
+
+/**
+ * Schedules the drive and one latch per reel. When a committed timing plan is supplied the
+ * latches follow the exact settle times, and every reel that holds for a possible trigger
+ * gets a second, quieter pass of the mechanism so the wait stays audible.
+ */
+export function createSpinCuePlan(reducedMotion = false, timing?: SpinTiming): readonly ScheduledAudioCue[] {
+  const plan: ScheduledAudioCue[] = [{ cue: 'spin-drive', delayMs: 0, gain: 0.9 }];
   const settleStart = reducedMotion ? 35 : 235;
   const settleStep = reducedMotion ? 18 : 54;
-  return [
-    { cue: 'spin-drive', delayMs: 0, gain: 0.9 },
-    ...Array.from({ length: 5 }, (_, index): ScheduledAudioCue => ({
-      cue: `reel-latch-${index + 1}` as ScheduledAudioCue['cue'],
-      delayMs: settleStart + settleStep * index,
-      gain: 0.76 + index * 0.035,
-    })),
-  ];
+  const stops = reducedMotion ? undefined : timing?.reelStopMs;
+  for (let reel = 0; reel < REELS; reel += 1) {
+    const delayMs = stops?.[reel] ?? settleStart + settleStep * reel;
+    if (stops && timing?.anticipatedReels[reel]) {
+      plan.push({ cue: 'spin-drive', delayMs: (stops[reel - 1] ?? 0) + 40, gain: 0.52 });
+    }
+    plan.push({ cue: `reel-latch-${reel + 1}` as ScheduledAudioCue['cue'], delayMs, gain: 0.76 + reel * 0.035 });
+  }
+  return plan;
 }
 
 function winCue(result: SpinResult): ScheduledAudioCue['cue'] {
@@ -24,8 +34,12 @@ function winCue(result: SpinResult): ScheduledAudioCue['cue'] {
   return 'win-small';
 }
 
-export function createResultCuePlan(result: SpinResult, reducedMotion = false): readonly ScheduledAudioCue[] {
-  const revealDelay = reducedMotion ? 35 : 515;
+export function createResultCuePlan(
+  result: SpinResult,
+  reducedMotion = false,
+  presentationMs = DEFAULT_PRESENTATION_MS,
+): readonly ScheduledAudioCue[] {
+  const revealDelay = reducedMotion ? 35 : Math.max(0, presentationMs - 5);
   const plan: ScheduledAudioCue[] = [];
   if (result.totalPayout > 0) {
     plan.push(

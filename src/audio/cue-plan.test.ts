@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SpinResult } from '../engine';
 import { createFeatureCompleteCuePlan, createResultCuePlan, createRouteCuePlan, createSpinCuePlan } from './cue-plan';
+import { planSpinTiming } from '../presentation/spin-timing';
 
 function result(overrides: Partial<SpinResult> = {}): SpinResult {
   return {
@@ -49,6 +50,23 @@ describe('audio cue planning', () => {
     const retrigger = createResultCuePlan(result({ bonusEvent: { retriggered: true, coresCollected: 3 } } as Partial<SpinResult>));
     expect(retrigger.map((item) => item.cue)).toContain('feature-retrigger');
     expect(createFeatureCompleteCuePlan()[0]?.cue).toBe('feature-complete');
+  });
+
+  it('follows the committed reel plan and keeps the mechanism audible while a reel holds', () => {
+    const timing = planSpinTiming({ reels: 5, scatterReelIndexes: [0, 1], triggerScatters: 3 });
+    const plan = createSpinCuePlan(false, timing);
+    const latches = plan.filter((item) => item.cue.startsWith('reel-latch'));
+    expect(latches.map((item) => item.delayMs)).toEqual([...timing.reelStopMs]);
+    // Reels 3, 4 and 5 all wait on a possible third Signal Core.
+    expect(plan.filter((item) => item.cue === 'spin-drive')).toHaveLength(4);
+    expect(plan.map((item) => item.delayMs)).toEqual([...plan].map((item) => item.delayMs).sort((a, b) => a - b));
+  });
+
+  it('delays the result cues until the committed presentation ends', () => {
+    const winningResult = result({ totalPayout: 20 });
+    const held = createResultCuePlan(winningResult, false, 2_000);
+    expect(held[0]?.delayMs).toBeGreaterThan(createResultCuePlan(winningResult)[0]?.delayMs ?? 0);
+    expect(held[0]?.delayMs).toBeLessThan(2_000);
   });
 
   it('compresses presentation delays for reduced motion', () => {

@@ -38,6 +38,22 @@ Diagnostics accompany three safeguards:
 1. A 180 ms spin-entry gate prevents a synchronous click burst from entering the application handler more than once before React commits the presenting state. The existing phase lock remains authoritative for the full presentation.
 2. Web Audio one-shot sources and their gain nodes disconnect when playback ends. Active one-shots are capped at 32, with excess cues dropped and logged rather than increasing resource pressure.
 3. PixiJS follows the browser's display-synchronized animation frame rate, records WebGL context loss, stops expensive redraws while idle, and retains its existing destruction and resize cleanup.
+4. The renderer rebuilds its scene on every animated frame and releases the previous frame completely, including each `Graphics` object's owned `GraphicsContext`. PixiJS keeps that tessellated geometry alive unless `context: true` is requested at destruction, so omitting it retained every shape drawn since page load.
+
+### Resolved P1 — long play exhausted the browser tab
+
+**Symptom:** after roughly a minute of continuous play the tab reported that the page had crashed. The React error boundary cannot recover from this because the renderer process itself is terminated.
+
+**Cause:** the per-frame scene teardown destroyed display objects with `destroy({ children: true })`. PixiJS only releases a `Graphics` object's owned `GraphicsContext` when the destroy options request it, so every shape drawn in every frame retained its geometry buffers. A measured session grew the JavaScript heap by roughly 75 MB per spin and reached the 4 GB tab limit in about 55 spins.
+
+The functional `CORE` and `WILD` nameplates compounded the cost. A PixiJS `TextStyle` is
+keyed by instance, so building one per frame rasterized a fresh canvas, uploaded a new GPU
+texture on every redraw, and left a permanent entry in the text system's active-texture map
+for every key it had ever seen. Each nameplate is now rendered once per font size and reused.
+
+**Verification:** after both fixes, a 100-spin session sampled every 400 ms returned to a
+30–43 MB baseline in every 30-second window, with only transient peaks between collections.
+`sustained play keeps the renderer heap bounded` in the Playwright suite guards the regression.
 
 The deterministic engine remains unchanged. These guards affect input and presentation resources only and never alter a result after generation.
 

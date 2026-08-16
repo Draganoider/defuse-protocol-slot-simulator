@@ -248,6 +248,11 @@ for (const winCase of [
     const celebration = page.locator(`.dp-win-celebration--${winCase.tier}`);
     await expect(celebration).toBeVisible();
     await expect(celebration).toContainText(winCase.headline);
+    // The counted total must still be running well after the reels settle, so a large
+    // return is readable instead of appearing at its final value immediately.
+    await page.waitForTimeout(400);
+    expect(await celebration.locator('strong').innerText()).not.toBe(`+${winCase.payout}`);
+    expect(await page.locator('.dp-win-total strong').innerText()).not.toBe(`+${winCase.payout}`);
     await expect(celebration).toContainText(`+${winCase.payout}`);
     await expect(page.locator('.dp-win-total strong')).toHaveText(`+${winCase.payout}`);
     expect(runtimeErrors).toEqual([]);
@@ -350,6 +355,187 @@ test('completed Bravo feature reports its total and returns to the base environm
   await summary.getByRole('button', { name: 'Return to base operation' }).click();
   await expect(summary).toBeHidden();
   await expect(page.locator('html')).not.toHaveAttribute('data-relay-scene', /.+/);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('console dialogs open as viewport modals instead of trailing page sections', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  // The development cheat menu is lazy-loaded and would otherwise land between samples.
+  await expect(page.getByRole('button', { name: /^DEV CHEATS/ })).toBeVisible();
+  const documentHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
+  const baselineHeight = await documentHeight();
+  for (const panel of [
+    { control: 'Paytable & help', title: 'Paytable & feature guide' },
+    { control: 'Lab', title: 'Simulation laboratory' },
+    { control: 'Diagnostics', title: 'Diagnostics' },
+  ] as const) {
+    await page.getByRole('button', { name: panel.control, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: panel.title });
+    await expect(dialog).toBeVisible();
+    const placement = await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        position: getComputedStyle(element).position,
+        top: Math.round(rect.top),
+        height: Math.round(rect.height),
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(placement.position).toBe('fixed');
+    expect(placement.top).toBe(0);
+    expect(placement.height).toBe(placement.viewportHeight);
+    expect(await documentHeight()).toBe(baselineHeight);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  }
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('the Signal Core route choice opens over the reels and locks the console', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+  const choice = await forceCoreChoice(page);
+
+  await expect(choice.getByRole('button', { name: /Relay Alpha/ })).toBeFocused();
+  await expect(page.locator('.dp-bonus-lock')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New seed' })).toBeDisabled();
+  const placement = await page.evaluate(() => {
+    const popup = document.querySelector('.dp-bonus-popup')!.getBoundingClientRect();
+    const frame = document.querySelector('.dp-reel-frame')!.getBoundingClientRect();
+    const popupLayer = document.querySelector('.dp-bonus-popup')!;
+    return {
+      position: getComputedStyle(popupLayer).position,
+      overflowTop: Math.round(frame.top - popup.top),
+      overflowBottom: Math.round(popup.bottom - frame.bottom),
+      scrolls: popupLayer.scrollHeight > popupLayer.clientHeight + 1,
+    };
+  });
+  expect(placement.position).toBe('absolute');
+  expect(placement.overflowTop).toBeLessThanOrEqual(2);
+  expect(placement.overflowBottom).toBeLessThanOrEqual(2);
+  expect(placement.scrolls).toBe(false);
+
+  await choice.getByRole('button', { name: /Relay Alpha/ }).click();
+  await expect(page.locator('.dp-bonus-lock')).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Relay Alpha status' })).toBeVisible();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('a pending third Signal Core holds the remaining reels before settling', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  // This seed commits Signal Cores on reels one and two, so reels three, four and five
+  // each still complete the trigger with one more Core.
+  await openPrototype(page, [1, 3]);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  const presenting = page.getByRole('button', { name: 'Presenting result…' });
+  const startedAt = Date.now();
+  await spin.click();
+  await expect(presenting).toBeDisabled();
+
+  // An ordinary spin has fully settled by 520 ms; the held reels must still be running.
+  await page.waitForTimeout(900);
+  await expect(presenting).toBeDisabled();
+  await expect(spin).toBeEnabled({ timeout: 5_000 });
+  expect(Date.now() - startedAt).toBeGreaterThan(1_800);
+
+  const diagnostics = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('defuse-protocol:diagnostics:v1') ?? '[]') as Array<{
+      type: string;
+      details: Record<string, unknown>;
+    }>);
+  const spinResult = diagnostics.findLast((event) => event.type === 'spin-result');
+  expect(spinResult?.details.cores).toBe(2);
+  expect(spinResult?.details.anticipatedReels).toBe(3);
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('an ordinary spin keeps its short presentation', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  const startedAt = Date.now();
+  await spin.click();
+  await expect(spin).toBeEnabled();
+  expect(Date.now() - startedAt).toBeLessThan(1_500);
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('a wager above the balance blocks the spin and stays recoverable', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  const decreaseWager = page.getByRole('button', { name: 'Decrease wager' });
+  const balance = page.locator('.dp-stat dd').first();
+  const wager = page.locator('.dp-wager-controls output');
+  // A synchronous burst also covers wager steps that land in a single React batch.
+  const stepWager = (label: string, times: number) => page.getByRole('button', { name: label })
+    .evaluate((element, count) => {
+      for (let index = 0; index < count; index += 1) (element as HTMLButtonElement).click();
+    }, times);
+
+  for (let index = 0; index < 6 && (await balance.innerText()) === '2,000 VC'; index += 1) {
+    await spin.click();
+    await expect(spin).toBeEnabled();
+  }
+  await expect(balance).not.toHaveText('2,000 VC');
+
+  await stepWager('Increase wager', 99);
+  await expect(wager).toHaveText('2,000 VC');
+  const blocked = page.getByRole('button', { name: 'Out of credits' });
+  await expect(blocked).toBeVisible();
+  await expect(blocked).toBeDisabled();
+  await expect(page.locator('#dp-result-feedback')).toContainText('Insufficient virtual credits');
+  await expect(page.locator('#dp-result-feedback')).toContainText('Lower the wager');
+
+  // Recovery must not require a session reset, so the wager stays adjustable.
+  await expect(decreaseWager).toBeEnabled();
+  await stepWager('Decrease wager', 99);
+  await expect(wager).toHaveText('20 VC');
+  await expect(spin).toBeEnabled();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('sustained play keeps the renderer heap bounded', async ({ page }) => {
+  test.slow();
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const heapBytes = () => page.evaluate(() =>
+    (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0);
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  for (let index = 0; index < 5; index += 1) {
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    await page.waitForTimeout(190);
+  }
+
+  const baseline = await heapBytes();
+  test.skip(baseline === 0, 'This browser does not expose performance.memory.');
+  let completedSpins = 0;
+  for (let index = 0; index < 40; index += 1) {
+    if (!(await spin.isVisible())) break;
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    await page.waitForTimeout(190);
+    completedSpins += 1;
+  }
+
+  // The previous renderer leaked every per-frame GraphicsContext, which grew the heap by
+  // roughly 75 MB per spin and crashed the tab within about a minute of continuous play.
+  expect(completedSpins).toBeGreaterThanOrEqual(20);
+  expect(await heapBytes() - baseline).toBeLessThan(300 * 1024 * 1024);
   expect(runtimeErrors).toEqual([]);
 });
 

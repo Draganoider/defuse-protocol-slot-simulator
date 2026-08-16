@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MAX_PRESENTED_WIN_PATHS,
   WIN_PATH_CYCLE_MS,
@@ -8,9 +8,11 @@ import {
   type WinningPath,
 } from '../renderer/ReelCanvas';
 import type { AudioPreviewCue, AudioSettings, AudioStatus } from '../audio/types';
+import type { SpinTiming } from '../presentation/spin-timing';
 import { classifyWin } from '../presentation/win-tier';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { WinCelebration } from './WinCelebration';
+import { useCountUp } from './useCountUp';
 import './prototype.css';
 
 const DevCheats = import.meta.env.DEV
@@ -61,6 +63,8 @@ export interface PrototypeProps {
   winningCells?: readonly ReelCell[];
   /** Authoritative evaluated payline summaries used for visual tracing and labels. */
   winningPaths?: readonly WinningPath[];
+  /** Reel settle plan derived from the committed result before presentation begins. */
+  spinTiming?: SpinTiming;
   phase: PresentationPhase;
   seed: string;
   replayId?: string;
@@ -71,6 +75,8 @@ export interface PrototypeProps {
   featureSummary?: PrototypeFeatureSummary;
   /** Whether the application should request the next free spin automatically. */
   bonusAutoplay?: boolean;
+  /** True when the remaining virtual-credit balance cannot cover the current wager. */
+  insufficientCredits?: boolean;
   simulation?: PrototypeStatistics;
   /** True while the parent-owned worker is processing a simulation request. */
   simulationRunning?: boolean;
@@ -149,9 +155,19 @@ export function Prototype(props: PrototypeProps) {
     () => classifyWin(hasPresentedWin ? props.lastWin : 0, props.totalWager),
     [hasPresentedWin, props.lastWin, props.totalWager],
   );
+  const countedWin = useCountUp(
+    hasPresentedWin ? props.lastWin : 0,
+    winPresentation.countDurationMs,
+    props.reducedMotion,
+    `${props.replayId ?? props.seed}:${props.lastWin}`,
+  );
   const strongestPath = winningPaths.reduce<WinningPath | undefined>((best, path) => !best || path.payout > best.payout ? path : best, undefined);
-  const spinDisabled = props.phase === 'spinning' || props.phase === 'bonus-choice';
-  const wagerControlsDisabled = spinDisabled || inFeature;
+  const presentationLocked = props.phase === 'spinning' || props.phase === 'bonus-choice';
+  const needsCredits = Boolean(props.insufficientCredits) && !inFeature && !presentationLocked;
+  const spinDisabled = presentationLocked || needsCredits;
+  // The wager must stay adjustable while credits are short, otherwise lowering it is
+  // impossible and the only way to keep playing is a full session reset.
+  const wagerControlsDisabled = presentationLocked || inFeature;
   const outcomeFeedback = useMemo(() => {
     if (props.phase === 'spinning') return {
       eyebrow: 'Result locked',
@@ -166,6 +182,13 @@ export function Prototype(props: PrototypeProps) {
       detail: 'The result is confirmed. Choose a relay route to continue the operation.',
       tone: 'feature',
       statusLabel: 'Awaiting route',
+    } as const;
+    if (needsCredits) return {
+      eyebrow: 'Insufficient virtual credits',
+      title: `${formatCredits(props.balance)} VC remaining`,
+      detail: `The current wager is ${formatCredits(props.totalWager)} VC. Lower the wager or reset the virtual-credit session to continue.`,
+      tone: 'neutral',
+      statusLabel: 'Wager exceeds balance',
     } as const;
     if (hasPresentedWin) {
       const route = inFeature ? `${props.bonus?.route === 'bravo' ? 'Relay Bravo' : 'Relay Alpha'} · ` : '';
@@ -209,10 +232,12 @@ export function Prototype(props: PrototypeProps) {
       tone: 'neutral',
       statusLabel: 'System secure',
     } as const;
-  }, [hasPresentedWin, inFeature, props.bonus?.route, props.bonus?.spinsRemaining, props.bonusAutoplay, props.lastWin, props.phase, strongestPath, winningPaths.length]);
+  }, [hasPresentedWin, inFeature, needsCredits, props.balance, props.bonus?.route, props.bonus?.spinsRemaining, props.bonusAutoplay, props.lastWin, props.phase, props.totalWager, strongestPath, winningPaths.length]);
 
+  const choosingRoute = props.phase === 'bonus-choice';
   const cabinetClassName = [
     'dp-cabinet',
+    choosingRoute && 'dp-cabinet--choosing',
     inFeature && 'dp-cabinet--feature',
     sceneRoute && `dp-cabinet--${sceneRoute}`,
     hasPresentedWin && 'dp-cabinet--win',
@@ -253,6 +278,24 @@ export function Prototype(props: PrototypeProps) {
     return () => window.removeEventListener('keydown', handleSpaceSpin);
   }, [audioOpen, cheatOpen, diagnosticsOpen, helpOpen, inFeature, labOpen, props.featureSummary, props.onSpin, spinDisabled]);
 
+  const { featureSummary, onDismissFeatureSummary } = props;
+  useEffect(() => {
+    // The route choice is deliberately excluded: it is a required decision with no
+    // dismissed state, so there is nothing for Escape to return the player to.
+    const closeTopPanel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (diagnosticsOpen) setDiagnosticsOpen(false);
+      else if (audioOpen) setAudioOpen(false);
+      else if (labOpen) setLabOpen(false);
+      else if (helpOpen) setHelpOpen(false);
+      else if (featureSummary) onDismissFeatureSummary();
+      else return;
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', closeTopPanel);
+    return () => window.removeEventListener('keydown', closeTopPanel);
+  }, [audioOpen, diagnosticsOpen, featureSummary, helpOpen, labOpen, onDismissFeatureSummary]);
+
   return (
     <main className={prototypeClassName}>
       <span className="dp-win-ambient" aria-hidden="true" />
@@ -272,9 +315,10 @@ export function Prototype(props: PrototypeProps) {
       <section className={cabinetClassName} aria-label="Defuse Protocol slot simulator" aria-busy={props.phase === 'spinning'} aria-describedby="dp-result-feedback">
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
         <div className="dp-reel-frame">
-          <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={sceneRoute} winTier={winPresentation.tier} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
+          <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={sceneRoute} winTier={winPresentation.tier} spinTiming={props.spinTiming} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
           {hasPresentedWin && winningPaths.length > 0 && <PaylineOverlay paths={winningPaths} reducedMotion={props.reducedMotion} />}
           {hasPresentedWin && <WinCelebration payout={props.lastWin} presentation={winPresentation} replayId={props.replayId} reducedMotion={props.reducedMotion} />}
+          {choosingRoute && <BonusChoice onChoose={props.onChooseBonus} reducedMotion={props.reducedMotion} />}
         </div>
         <dl className="dp-scoreboard">
           <Stat label="Balance" value={`${formatCredits(props.balance)} VC`} />
@@ -293,16 +337,18 @@ export function Prototype(props: PrototypeProps) {
           >
             {props.phase === 'spinning'
               ? 'Presenting result…'
-              : inFeature
-                ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
-                : 'Spin'}
+              : needsCredits
+                ? 'Out of credits'
+                : inFeature
+                  ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
+                  : 'Spin'}
           </button>
-          <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed}>New seed</button></div>
+          <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed} disabled={choosingRoute}>New seed</button></div>
         </div>
         {hasPresentedWin && (
           <div className={`dp-win-total dp-win-total--${winPresentation.tier}`} aria-hidden="true">
             <span>{winPresentation.headline}</span>
-            <strong>+{formatCredits(props.lastWin)}</strong>
+            <strong>+{formatCredits(countedWin)}</strong>
             <small>VC</small>
           </div>
         )}
@@ -328,7 +374,7 @@ export function Prototype(props: PrototypeProps) {
           <DevCheats open={cheatOpen} setOpen={setCheatOpen} onForceBonus={props.onForceBonus} onReset={props.onResetSession} />
         </Suspense>
       )}
-      {props.phase === 'bonus-choice' && <BonusChoice onChoose={props.onChooseBonus} />}
+      {choosingRoute && <div className="dp-bonus-lock" aria-hidden="true" />}
       {labOpen && <LabPanel statistics={props.simulation} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
       {audioOpen && <AudioPanel settings={props.audioSettings} status={props.audioStatus} onUpdate={props.onUpdateAudio} onPreview={props.onPreviewAudio} onClose={() => setAudioOpen(false)} />}
@@ -427,8 +473,59 @@ function FeatureMeter({ bonus }: { bonus?: PrototypeBonus }) {
   return <section className="dp-feature-meter dp-feature-meter--alpha" aria-label="Relay Alpha status" aria-live="polite" aria-atomic="true"><p><strong>Relay Alpha — Controlled Containment</strong><span>Signal Cores charge expanding wild reels for a final Extraction Spin.</span></p><span className="dp-feature-spins">{spinsRemaining ?? '—'} <small>spins left</small></span><div className="dp-meter-track" role="progressbar" aria-label="Containment charges" aria-valuemin={0} aria-valuemax={target} aria-valuenow={charges} aria-valuetext={`${charges} of ${target} containment charges`}><span style={{ width: `${Math.min(100, (charges / Math.max(target, 1)) * 100)}%` }} /></div><b>{charges}/{target} charges</b></section>;
 }
 
-function BonusChoice({ onChoose }: { onChoose: (route: BonusRoute) => void }) {
-  return <div className="dp-overlay dp-overlay--bonus" role="dialog" aria-modal="true" aria-labelledby="bonus-choice-title" aria-describedby="bonus-choice-description"><section className="dp-dialog dp-bonus-choice"><p className="dp-kicker">Signal Core trigger confirmed</p><h2 id="bonus-choice-title">Choose a relay route</h2><p id="bonus-choice-description">Both routes are designed around similar expected feature return. Their risk profiles are different.</p><div className="dp-choice-grid"><button type="button" autoFocus onClick={() => onChoose('alpha')}><span className="dp-choice-mark">A</span><strong>Relay Alpha</strong><em>Controlled containment</em><span>10 free spins. Collect Core charges to activate expanding wild reels and carry them into the Extraction Spin.</span><b>Steadier medium outcomes</b></button><button type="button" onClick={() => onChoose('bravo')}><span className="dp-choice-mark dp-choice-mark--red">B</span><strong>Relay Bravo</strong><em>Emergency recovery</em><span>6 free spins. Consecutive wins escalate 1× → 2× → 3× → 5×; a blank spin resets it.</span><b>Higher risk, larger peaks</b></button></div><p className="dp-choice-commitment">Route selection changes feature behavior only. It does not redraw the triggering result.</p></section></div>;
+/**
+ * The required route decision is presented directly over the reels that produced the
+ * Signal Core trigger. A sibling page lock keeps the rest of the console unreachable
+ * so the pending offer cannot be discarded by an unrelated control.
+ */
+function BonusChoice({ onChoose, reducedMotion }: { onChoose: (route: BonusRoute) => void; reducedMotion?: boolean }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    const trapFocus = (event: KeyboardEvent) => {
+      const panel = panelRef.current;
+      if (event.key !== 'Tab' || !panel) return;
+      const stops = [...panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      if (stops.length === 0) return;
+      const edge = event.shiftKey ? stops[0] : stops[stops.length - 1];
+      if (document.activeElement !== edge && panel.contains(document.activeElement)) return;
+      event.preventDefault();
+      (event.shiftKey ? stops[stops.length - 1] : stops[0]).focus();
+    };
+    window.addEventListener('keydown', trapFocus);
+    return () => window.removeEventListener('keydown', trapFocus);
+  }, []);
+
+  return (
+    <div ref={panelRef} className="dp-bonus-popup" role="dialog" aria-modal="true" aria-labelledby="bonus-choice-title" aria-describedby="bonus-choice-description">
+      <section className="dp-bonus-choice">
+        <p className="dp-kicker">Signal Core trigger confirmed</p>
+        <h2 id="bonus-choice-title">Choose a relay route</h2>
+        <p id="bonus-choice-description">Both routes are designed around similar expected feature return. Their risk profiles are different.</p>
+        <div className="dp-choice-grid">
+          <button type="button" autoFocus onClick={() => onChoose('alpha')}>
+            <span className="dp-choice-mark">A</span>
+            <strong>Relay Alpha</strong>
+            <em>Controlled containment</em>
+            <span>10 free spins. Collect Core charges to activate expanding wild reels and carry them into the Extraction Spin.</span>
+            <b>Steadier medium outcomes</b>
+          </button>
+          <button type="button" onClick={() => onChoose('bravo')}>
+            <span className="dp-choice-mark dp-choice-mark--red">B</span>
+            <strong>Relay Bravo</strong>
+            <em>Emergency recovery</em>
+            <span>6 free spins. Consecutive wins escalate 1× → 2× → 3× → 5×; a blank spin resets it.</span>
+            <b>Higher risk, larger peaks</b>
+          </button>
+        </div>
+        <p className="dp-choice-commitment">Route selection changes feature behavior only. It does not redraw the triggering result.</p>
+      </section>
+    </div>
+  );
 }
 
 function LabPanel({ statistics, running = false, onRun, onClose }: { statistics?: PrototypeStatistics; running?: boolean; onRun: PrototypeProps['onRunSimulation']; onClose: () => void }) {

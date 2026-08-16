@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BonusRoute, SpinResult } from '../engine';
 import { AudioDirector } from './AudioDirector';
 import { createFeatureCompleteCuePlan, createResultCuePlan, createRouteCuePlan, createSpinCuePlan } from './cue-plan';
+import type { SpinTiming } from '../presentation/spin-timing';
 import {
   DEFAULT_AUDIO_SETTINGS,
   loadAudioSettings,
@@ -35,12 +36,12 @@ export function useGameAudio() {
     setSettings((current) => ({ ...current, ...patch, version: 2 }));
   }, []);
 
-  const playSpin = useCallback((reducedMotion = false) => {
-    getDirector().playPlan(createSpinCuePlan(reducedMotion));
+  const playSpin = useCallback((reducedMotion = false, timing?: SpinTiming) => {
+    getDirector().playPlan(createSpinCuePlan(reducedMotion, timing));
   }, [getDirector]);
 
-  const presentResult = useCallback((result: SpinResult, reducedMotion = false) => {
-    getDirector().playPlan(createResultCuePlan(result, reducedMotion));
+  const presentResult = useCallback((result: SpinResult, reducedMotion = false, presentationMs?: number) => {
+    getDirector().playPlan(createResultCuePlan(result, reducedMotion, presentationMs));
   }, [getDirector]);
 
   const chooseRoute = useCallback((route: BonusRoute) => {

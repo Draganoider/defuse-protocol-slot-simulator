@@ -7,10 +7,10 @@
 
 | Check | Result |
 | --- | --- |
-| `npm test` | Pass — 8 files, 45 tests |
+| `npm test` | Pass — 9 files, 55 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
-| Playwright development flows | Pass — 17 tests |
+| Playwright development flows | Pass — 23 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -59,6 +59,86 @@ automatic free spins are active or paused.
 The wager controls are now visibly disabled during an active feature while the
 Pause/Resume autoplay control remains enabled between presentations. Playwright verifies
 this presentation state for both routes and the application callback remains a second guard.
+
+### Resolved P1 — long play crashed the browser tab
+
+**Reproduction:** play continuously for about a minute, or run the automated equivalent of
+roughly 55 spins, and observe the tab report that the page crashed.
+
+The per-frame scene teardown in `src/renderer/ReelCanvas.tsx` destroyed display objects with
+`destroy({ children: true })`. PixiJS releases a `Graphics` object's owned `GraphicsContext`
+only when the destroy options request it, so the tessellated geometry of every shape drawn
+since page load stayed resident. Live measurement in a 4 GB tab recorded 463 MB after seven
+spins, 2,060 MB after 28, and 3,195 MB after 42 — a crash was inevitable within a minute.
+
+The renderer now destroys with `{ children: true, context: true }` while explicitly retaining
+shared symbol textures. A second contributor was removed at the same time: the CORE and WILD
+nameplates built a new `TextStyle` on every frame, and because PixiJS keys a style by instance
+this rasterized a fresh canvas, uploaded a new GPU texture per redraw, and left a permanent
+entry in the text system's active-texture map. Nameplates are now rendered once per font size.
+
+After both fixes, a 100-spin session sampled every 400 ms returned to a 30–43 MB baseline in
+every 30-second window, and a longer session covering completed Alpha and Bravo routes showed
+no upward trend in the retained set. `sustained play keeps the renderer heap bounded` guards
+the regression.
+
+### Resolved P1 — every dialog rendered below the console instead of over it
+
+**Reproduction:** trigger a Signal Core event, or open the paytable, laboratory, audio, or
+diagnostics panel, and observe the panel appended to the bottom of the page.
+
+A stacking rule added with the atmosphere layers, `.dp-prototype > :not(.dp-win-ambient):not(.dp-route-atmosphere)`,
+outranked `.dp-overlay` and replaced `position: fixed` with `position: relative` for every
+direct child of the shell. Because all dialogs are direct children, the whole modal layer
+silently returned to the document flow. The rule now names the in-flow sections explicitly.
+
+The route choice is additionally presented as a popup inside the reel frame, over the grid
+that produced the trigger, with a viewport lock that keeps the rest of the console
+unreachable while the offer is pending. `console dialogs open as viewport modals instead of
+trailing page sections` and `the Signal Core route choice opens over the reels and locks the
+console` cover both behaviors.
+
+### Resolved P2 — an unaffordable wager ended the session silently
+
+**Reproduction:** raise the wager above the remaining balance and press Spin.
+
+The application recorded a rate-limited `spin-blocked` diagnostic and returned. The control
+stayed enabled and nothing visible changed, which reads as a broken button. Spin is now
+disabled and labeled **Out of credits**, the live region names the balance and the wager, and
+the wager controls stay enabled so play resumes without a session reset.
+
+### Resolved P3 — held or batched wager steps advanced only once
+
+A burst of wager clicks committed in a single React batch derived every step from the same
+stale session reading, so the wager moved one step regardless of the number of clicks. The
+step is now derived inside the state updater.
+
+## Anticipation and win-hold QA
+
+Scatter anticipation is planned from the committed result before presentation begins.
+Unit tests cover the natural cadence, the cumulative hold, the point at which anticipation
+stops because the trigger is already met, anticipation from the second reel when both Cores
+land first, strictly increasing stop times, and out-of-range scatter positions.
+
+Live browser review used seed `00000001-00000003`, which commits Cores on reels one and two
+so reels three, four, and five each still complete the trigger. The presentation ran for
+2.7 s against 0.52 s for an ordinary spin. Captured frames confirmed the intended reveal
+order: the settled Cores carried pulsing rings, exactly one pending reel was outlined at a
+time, and the outline advanced to the next reel as each one landed. No treatment appeared
+before the Cores that created the wait had settled, so no landing position is revealed early.
+Playwright covers both the held spin and the unchanged length of an ordinary spin.
+
+A live major-win capture sampled the counted total every 300 ms: it ran from 0 to the
+committed 639 virtual credits over roughly 2.9 s with an ease-in-out ramp, against a
+1.65 s ease-out cap previously. The confirmed-total bar and the celebration overlay now
+share that counter, so the final figure is no longer displayed beside a total still counting
+toward it. Both tier fixtures assert that neither readout has reached its final value shortly
+after the reels settle.
+
+A measured Relay Bravo feature confirmed that automatic spins hold in proportion to the
+committed return: 0.65 s for a blank spin, 1.8 s at 1.5×, 3.8 s at 8.4×, 4.0 s at 10×, and
+5.6 s at 43×. The accessible ledger, live region, and balance still state the authoritative
+total immediately, so no announcement waits on an animation.
 
 ## Grounded production asset QA
 

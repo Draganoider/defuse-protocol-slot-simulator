@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { recordDiagnostic, recordDiagnosticRateLimited } from '../diagnostics/diagnostic-log';
-import type { WinTier } from '../presentation/win-tier';
+import { WIN_TIER_DURATION_MS, type WinTier } from '../presentation/win-tier';
+import { REEL_BASE_MS, REEL_STAGGER_MS, type SpinTiming } from '../presentation/spin-timing';
 import recoveryCaseUrl from '../assets/symbols/symbol-recovery-case-base-01.webp';
 import containmentSpecialistUrl from '../assets/symbols/symbol-containment-specialist-wild-01.webp';
 import signalCoreUrl from '../assets/symbols/symbol-signal-core-base-01.webp';
@@ -46,6 +47,8 @@ export interface ReelCanvasProps {
   bonusRoute?: 'alpha' | 'bravo';
   /** Presentation tier derived outside the renderer from the committed payout. */
   winTier?: WinTier;
+  /** Reel settle plan derived from the committed result before presentation begins. */
+  spinTiming?: SpinTiming;
   reducedMotion?: boolean;
   className?: string;
 }
@@ -61,8 +64,10 @@ const PALETTE = {
 };
 
 const MOTION = {
-  reelBaseMs: 244,
-  reelStaggerMs: 47,
+  reelBaseMs: REEL_BASE_MS,
+  reelStaggerMs: REEL_STAGGER_MS,
+  /** Reel travel while a reel holds for a possible trigger, in grid cycles per second. */
+  anticipationCyclesPerSecond: 1.8,
   resultEmphasisMs: 460,
   winPathDrawMs: 620,
   winPathCycleMs: WIN_PATH_CYCLE_MS,
@@ -98,6 +103,14 @@ const PRODUCTION_SYMBOL_ASSETS = {
   RADIO: fieldRadioUrl,
 } as const;
 
+/**
+ * PixiJS only releases a Graphics object's owned GraphicsContext when `context: true`
+ * is requested. The scene is rebuilt every animated frame, so omitting it leaks the
+ * tessellated geometry of every shape until the browser tab runs out of memory.
+ * Shared symbol textures are loaded once, so texture ownership is never released here.
+ */
+const DESTROY_OPTIONS = { children: true, context: true, texture: false, textureSource: false } as const;
+
 type PresentationPhase = ReelCanvasProps['phase'];
 
 async function loadProductionTextures() {
@@ -128,9 +141,58 @@ function pulseEnvelope(progress: number) {
   return Math.sin(clamp01(progress) * Math.PI) ** 2;
 }
 
+/**
+ * Renders each functional nameplate once per font size and reuses the result.
+ * A `TextStyle` is keyed by instance in PixiJS, so building one per frame rasterizes a
+ * fresh canvas and uploads a new GPU texture on every redraw, and the text system keeps
+ * an entry for every key it has ever seen.
+ */
+class MarkTextureCache {
+  private readonly textures = new Map<string, Texture>();
+
+  constructor(private readonly app: Application) {}
+
+  get(mark: string, accent: number, fontSize: number): Texture | undefined {
+    const rounded = Math.max(10, Math.round(fontSize));
+    const key = `${mark}:${rounded}`;
+    const cached = this.textures.get(key);
+    if (cached) return cached;
+    const label = new Text({
+      text: mark,
+      style: new TextStyle({
+        fill: accent,
+        fontFamily: 'Bahnschrift Condensed, Arial Narrow, sans-serif',
+        fontSize: rounded,
+        fontWeight: '800',
+        letterSpacing: 1.8,
+        stroke: { color: PALETTE.deep, width: 2 },
+      }),
+    });
+    try {
+      const texture = this.app.renderer.generateTexture({ target: label, resolution: this.app.renderer.resolution });
+      this.textures.set(key, texture);
+      return texture;
+    } catch (error: unknown) {
+      recordDiagnosticRateLimited('renderer-mark-texture-failed', {
+        mark,
+        message: error instanceof Error ? error.message.slice(0, 200) : String(error).slice(0, 200),
+      }, 5_000);
+      return undefined;
+    } finally {
+      label.destroy(true);
+    }
+  }
+
+  destroy(): void {
+    for (const texture of this.textures.values()) texture.destroy(true);
+    this.textures.clear();
+  }
+}
+
 function drawSymbol(
   target: Container,
   textures: ReadonlyMap<string, Texture>,
+  marks: MarkTextureCache,
   id: string,
   x: number,
   y: number,
@@ -195,20 +257,13 @@ function drawSymbol(
       .roundRect(size * 0.22, size * 0.76, size * 0.56, size * 0.16, 2)
       .fill({ color: PALETTE.deep, alpha: 0.88 })
       .stroke({ color: symbol.accent, width: 1, alpha: 0.8 }));
-    const label = new Text({
-      text: symbol.mark,
-      style: new TextStyle({
-        fill: symbol.accent,
-        fontFamily: 'Bahnschrift Condensed, Arial Narrow, sans-serif',
-        fontSize: Math.max(10, size * 0.12),
-        fontWeight: '800',
-        letterSpacing: 1.8,
-        stroke: { color: PALETTE.deep, width: 2 },
-      }),
-    });
-    label.anchor.set(0.5, 0.5);
-    label.position.set(centerX, size * 0.84);
-    layer.addChild(label);
+    const markTexture = marks.get(symbol.mark, symbol.accent, size * 0.12);
+    if (markTexture) {
+      const label = new Sprite(markTexture);
+      label.anchor.set(0.5, 0.5);
+      label.position.set(centerX, size * 0.84);
+      layer.addChild(label);
+    }
   }
 
   if (scanOffset > 0) {
@@ -412,6 +467,52 @@ function drawWinningPaths(
   });
 }
 
+/**
+ * Emphasis for the reel that is still running because one more scatter would open the
+ * feature. Nothing is drawn until the scatters that created the wait have actually
+ * landed, so the treatment never reveals a position before its reel settles, and only
+ * the single reel currently being waited on is marked.
+ */
+function drawAnticipation(
+  stage: Container,
+  grid: ReelGrid,
+  timing: SpinTiming,
+  startX: number,
+  startY: number,
+  gap: number,
+  cell: number,
+  columns: number,
+  elapsed: number,
+) {
+  const firstAnticipated = timing.anticipatedReels.indexOf(true);
+  if (firstAnticipated < 1) return;
+  const beginsAt = timing.reelStopMs[firstAnticipated - 1] ?? 0;
+  if (elapsed < beginsAt) return;
+
+  const pitch = cell + gap;
+  const pulse = 0.45 + (Math.sin(elapsed / 150) + 1) * 0.24;
+
+  // Ring the scatters that brought the trigger within one Core.
+  for (let column = 0; column < firstAnticipated; column += 1) {
+    grid.forEach((row, rowIndex) => {
+      if (row[column]?.toUpperCase() !== 'CORE') return;
+      const centerX = startX + gap + column * pitch + cell / 2;
+      const centerY = startY + gap + rowIndex * pitch + cell / 2;
+      stage.addChild(new Graphics()
+        .circle(centerX, centerY, cell * 0.44).stroke({ color: PALETTE.gold, width: 2.5, alpha: pulse })
+        .circle(centerX, centerY, cell * 0.5).stroke({ color: PALETTE.amber, width: 1, alpha: pulse * 0.55 }));
+    });
+  }
+
+  const pending = timing.anticipatedReels.findIndex((anticipated, column) =>
+    anticipated && column < columns && elapsed < (timing.reelStopMs[column] ?? 0));
+  if (pending < 0) return;
+  stage.addChild(new Graphics()
+    .roundRect(startX + gap * 0.5 + pending * pitch, startY + gap * 0.5, cell + gap, grid.length * pitch, 3)
+    .fill({ color: PALETTE.amber, alpha: 0.05 + pulse * 0.05 })
+    .stroke({ color: PALETTE.amber, width: 2.5, alpha: pulse }));
+}
+
 function drawCoreCue(
   stage: Container,
   grid: ReelGrid,
@@ -448,7 +549,7 @@ function drawWinTierVfx(
 ) {
   if ((phase !== 'result' && phase !== 'bonus') || tier === 'none' || tier === 'standard') return;
   const intensity = tier === 'major' ? 1 : tier === 'big' ? 0.72 : 0.42;
-  const envelope = reducedMotion ? 0.46 : Math.max(0, 1 - elapsed / (tier === 'major' ? 2_600 : tier === 'big' ? 2_150 : 1_350));
+  const envelope = reducedMotion ? 0.46 : Math.max(0, 1 - elapsed / WIN_TIER_DURATION_MS[tier]);
   const centerX = x + width / 2;
   const centerY = y + height / 2;
   const sweep = reducedMotion ? 0.5 : (elapsed % 1_100) / 1_100;
@@ -473,15 +574,15 @@ function drawWinTierVfx(
  * An original PixiJS v8 reel renderer. The grid is always the committed engine
  * result; deterministic animation only changes how that grid is presented.
  */
-export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], bonusRoute, winTier = 'none', reducedMotion = false, className }: ReelCanvasProps) {
+export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], bonusRoute, winTier = 'none', spinTiming, reducedMotion = false, className }: ReelCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const renderRef = useRef<(() => void) | null>(null);
-  const latestRef = useRef({ grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion });
-  latestRef.current = { grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion };
+  const latestRef = useRef({ grid, phase, winningCells, winningPaths, bonusRoute, winTier, spinTiming, reducedMotion });
+  latestRef.current = { grid, phase, winningCells, winningPaths, bonusRoute, winTier, spinTiming, reducedMotion };
 
   useEffect(() => {
     renderRef.current?.();
-  }, [grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion]);
+  }, [grid, phase, winningCells, winningPaths, bonusRoute, winTier, spinTiming, reducedMotion]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -493,6 +594,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
     let resizeObserver: ResizeObserver | undefined;
     let removeContextListeners: () => void = () => {};
     let mediaReduced = false;
+    let markTextures: MarkTextureCache | undefined;
     let removeMotionListener: () => void = () => {};
     const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     const clock = { phase: latestRef.current.phase, phaseStartedAt: performance.now() };
@@ -501,7 +603,9 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
       destroyed = true;
       removeMotionListener();
       removeContextListeners();
-      app.destroy(true, { children: true });
+      markTextures?.destroy();
+      markTextures = undefined;
+      app.destroy(true, DESTROY_OPTIONS);
       recordDiagnostic('renderer-disposed');
     };
 
@@ -517,6 +621,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         destroyApp();
         return;
       }
+      markTextures = new MarkTextureCache(app);
       host.replaceChildren(app.canvas);
       const canvas = app.canvas as HTMLCanvasElement;
       const handleContextLost = (event: Event) => {
@@ -552,6 +657,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
           winningPaths: currentWinningPaths,
           bonusRoute: currentBonusRoute,
           winTier: currentWinTier,
+          spinTiming: currentTiming,
           reducedMotion: reducedMotionProp,
         } = latestRef.current;
         if (clock.phase !== currentPhase) {
@@ -563,7 +669,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const width = Math.max(host.clientWidth, 240);
         const height = Math.max(host.clientHeight, 250);
         app.renderer.resize(width, height);
-        app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
+        app.stage.removeChildren().forEach((child) => child.destroy(DESTROY_OPTIONS));
         const rows = Math.max(currentGrid.length, 3);
         const columns = Math.max(...currentGrid.map((row) => row.length), 5);
         const gap = Math.max(4, width * 0.009);
@@ -598,11 +704,21 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const cycle = Math.max(1, currentGrid.length) * pitch;
         const spinning = currentPhase === 'spinning' && !shouldReduceMotion;
 
+        const teaseSpeed = cycle * MOTION.anticipationCyclesPerSecond / 1_000;
         for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {
           const reelDuration = MOTION.reelBaseMs + columnIndex * MOTION.reelStaggerMs;
-          const reelProgress = spinning ? clamp01(elapsed / reelDuration) : 1;
+          // An anticipated reel keeps running at a slow constant rate until its settle
+          // window opens. Both segments read from the same committed stop position.
+          const holdUntil = Math.max(0, (currentTiming?.reelStopMs[columnIndex] ?? reelDuration) - reelDuration);
+          const teasing = spinning && elapsed < holdUntil;
+          const reelProgress = spinning ? clamp01((elapsed - holdUntil) / reelDuration) : 1;
           const totalTravel = cycle * (2 + (columnIndex % 3));
-          const traveled = reelProgress >= 1 ? totalTravel : totalTravel * easeOutCubic(reelProgress);
+          const teaseTravel = holdUntil * teaseSpeed;
+          // Re-align the settle travel so the reel still lands on an exact grid boundary.
+          const settleTravel = totalTravel + ((cycle - (teaseTravel % cycle)) % cycle);
+          const traveled = teasing
+            ? elapsed * teaseSpeed
+            : teaseTravel + settleTravel * easeOutCubic(reelProgress);
           const reelOffset = reelProgress >= 1 ? 0 : traveled % cycle;
           const landingProgress = clamp01((reelProgress - 0.76) / 0.24);
           const landingReaction = spinning ? pulseEnvelope(landingProgress) : 0;
@@ -618,13 +734,17 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
             const symbolX = startX + gap + columnIndex * pitch;
             const symbolY = startY + gap + copyRow * pitch + reelOffset + landingBounce;
             const scanOffset = spinning ? (elapsed * 0.36 + columnIndex * 19) % cell : 0;
-            drawSymbol(content, textures, id, symbolX, symbolY, cell, scanOffset, landingReaction);
+            if (markTextures) drawSymbol(content, textures, markTextures, id, symbolX, symbolY, cell, scanOffset, landingReaction);
           }
         }
         app.stage.addChild(content);
 
+        if (spinning && currentTiming?.hasAnticipation) {
+          drawAnticipation(app.stage, currentGrid, currentTiming, startX, startY, gap, cell, columns, elapsed);
+        }
+
         if (spinning) {
-          const lastDuration = MOTION.reelBaseMs + (columns - 1) * MOTION.reelStaggerMs;
+          const lastDuration = currentTiming?.reelStopMs.at(-1) ?? (MOTION.reelBaseMs + (columns - 1) * MOTION.reelStaggerMs);
           const activeStrength = 1 - clamp01(elapsed / lastDuration);
           const shutterY = startY + boardHeight * (0.3 + ((elapsed * 0.0007) % 0.4));
           app.stage.addChild(new Graphics().rect(startX, shutterY, boardWidth, 2).fill({ color: PALETTE.amber, alpha: 0.12 + activeStrength * 0.2 }));
@@ -687,7 +807,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const winSequenceMs = Math.min(state.winningPaths.length, MAX_PRESENTED_WIN_PATHS) * MOTION.winPathCycleMs;
         const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < winSequenceMs + 64;
         const animateCore = (state.phase === 'bonus-choice' || state.phase === 'bonus') && hasCore && elapsed < MOTION.corePulseMs;
-        const tierDuration = state.winTier === 'major' ? 2_600 : state.winTier === 'big' ? 2_150 : state.winTier === 'strong' ? 1_350 : 0;
+        const tierDuration = state.winTier === 'standard' ? 0 : WIN_TIER_DURATION_MS[state.winTier];
         const animateTier = isSettled && tierDuration > 0 && elapsed < tierDuration;
         if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateWin || animateCore || animateTier)) render();
       });

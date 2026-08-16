@@ -91,7 +91,6 @@ button { cursor: pointer; } button:focus-visible { outline: 3px solid #f3c65a; o
 .dp-close { color: #e2dccb; border-color: #69685d; border-radius: 2px; background: #353a33; }
 .dp-choice-grid button { color: #ded7c6; border-color: #7d755d; border-radius: 2px; background: #32372f; }
 .dp-choice-grid button:last-child { border-color: #8d5549; background: #3b302b; }
-.dp-overlay--bonus { background: radial-gradient(circle at 50% 42%, rgb(117 82 37 / .22), transparent 36%), rgb(18 20 17 / .9); }
 .dp-bonus-choice { box-shadow: 0 25px 80px rgb(0 0 0 / .52), inset 0 3px #8b7040; }
 .dp-choice-commitment { border-left-color: #d19a45; background: rgb(29 32 27 / .8); }
 .dp-choice-grid button em,
@@ -112,7 +111,14 @@ button:focus-visible { outline-color: #e0bd68; }
 
 /* Strong result confirmation: authoritative paylines remain visible and readable. */
 .dp-prototype { position: relative; isolation: isolate; }
-.dp-prototype > :not(.dp-win-ambient):not(.dp-route-atmosphere) { position: relative; z-index: 1; }
+/* Raise the in-flow console above the fixed atmosphere layers. This must name the
+   in-flow sections explicitly: a blanket child selector also outranks `.dp-overlay`
+   and silently drops every dialog back into the document flow. */
+.dp-topbar,
+.dp-no-value,
+.dp-cabinet,
+.dp-provenance,
+.dp-cheats { position: relative; z-index: 1; }
 .dp-win-ambient {
   position: fixed;
   z-index: 0;
@@ -272,6 +278,13 @@ button:focus-visible { outline-color: #e0bd68; }
 .dp-win-celebration p { color: #d8b25c; font-size: clamp(.92rem, 2.5vw, 1.55rem); font-weight: 900; letter-spacing: .2em; text-transform: uppercase; animation: dp-celebration-title 620ms cubic-bezier(.16, .8, .22, 1) 180ms both; }
 .dp-win-celebration strong { margin-top: .08em; font-size: clamp(3.8rem, 13vw, 9.2rem); font-variant-numeric: tabular-nums; font-weight: 950; letter-spacing: -.045em; line-height: .88; animation: dp-celebration-number 900ms cubic-bezier(.12, .82, .18, 1) 260ms both; }
 .dp-win-celebration small { margin-top: 12px; color: #c9b987; font-size: clamp(.65rem, 1.6vw, .9rem); font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+/* Larger tiers hold longer, so their celebration layers keep breathing for the whole
+   hold instead of freezing on a final frame while the total is still counting. */
+.dp-win-celebration--big .dp-win-celebration__wash { animation-duration: 3.4s; }
+.dp-win-celebration--major .dp-win-celebration__wash { animation-duration: 5s; }
+.dp-win-celebration--big .dp-win-celebration__ring { animation-iteration-count: 2; }
+.dp-win-celebration--major .dp-win-celebration__ring { animation-iteration-count: 3; }
+.dp-win-celebration--major .dp-win-celebration__sparks i { animation-iteration-count: 3; }
 .dp-win-celebration--major p { color: #ffe291; }
 .dp-win-celebration--major strong { color: #fff0bd; }
 .dp-win-celebration__sparks { position: absolute; inset: 0; }
@@ -311,6 +324,74 @@ button:focus-visible { outline-color: #e0bd68; }
 .dp-win-ledger li strong { color: #ece3cd; font-size: .84rem; letter-spacing: .025em; }
 .dp-win-ledger li b { color: #e8c771; font-size: .86rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dp-win-ledger > p { grid-column: 2; margin: 0; padding: 7px 12px; color: #aaa593; font-size: .7rem; background: #2d322b; }
+
+/* Signal Core route choice: a popup anchored to the reels that produced the trigger. */
+.dp-bonus-lock {
+  position: fixed;
+  z-index: 12;
+  inset: 0;
+  background: rgb(9 11 9 / .72);
+  animation: dp-bonus-lock-in 220ms ease-out both;
+}
+.dp-cabinet--choosing { position: relative; z-index: 13; border-color: #b2853d; }
+.dp-bonus-popup {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  display: grid;
+  place-content: safe center;
+  justify-items: center;
+  overflow: auto;
+  padding: clamp(6px, 1.4vw, 16px);
+  background:
+    radial-gradient(circle at 50% 42%, rgb(148 105 42 / .34), transparent 58%),
+    rgb(11 14 11 / .82);
+  animation: dp-bonus-popup-in 260ms cubic-bezier(.16, .8, .22, 1) both;
+}
+.dp-bonus-choice {
+  width: min(760px, 100%);
+  padding: clamp(12px, 2.2vw, 22px) clamp(14px, 2.6vw, 26px);
+  border: 2px solid #b2853d;
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgb(178 133 61 / .16), transparent 30%), #22271f;
+  box-shadow: 0 18px 44px rgb(0 0 0 / .58), inset 0 0 0 1px rgb(9 11 9 / .6);
+}
+.dp-bonus-choice h2 { margin: 0; color: #f0ead9; font-size: clamp(1.15rem, 2.9vw, 1.7rem); letter-spacing: -.025em; }
+.dp-bonus-choice > p:not(.dp-kicker) { margin: 6px 0 0; color: #c4bdab; font-size: clamp(.74rem, 1.6vw, .84rem); line-height: 1.45; }
+.dp-bonus-popup .dp-choice-grid { margin-top: clamp(10px, 1.8vw, 16px); gap: clamp(8px, 1.4vw, 14px); }
+.dp-bonus-popup .dp-choice-grid button { gap: clamp(4px, .8vw, 8px); padding: clamp(11px, 1.8vw, 17px); border-radius: 2px; }
+.dp-bonus-popup .dp-choice-grid button strong { font-size: clamp(.98rem, 2.1vw, 1.16rem); }
+.dp-bonus-popup .dp-choice-grid button span:not(.dp-choice-mark) { font-size: clamp(.71rem, 1.5vw, .82rem); line-height: 1.4; }
+.dp-bonus-popup .dp-choice-commitment { margin: clamp(9px, 1.6vw, 15px) 0 0; font-size: clamp(.68rem, 1.4vw, .75rem); }
+/* The reel frame is sized from viewport width, so compact the popup at the widths where
+   that frame becomes too short to hold the full panel. The description stays in the
+   accessibility tree because it is the dialog's `aria-describedby` target. */
+@media (max-width: 780px) {
+  .dp-bonus-popup .dp-choice-grid button span:not(.dp-choice-mark),
+  .dp-bonus-popup .dp-choice-commitment { display: none; }
+  .dp-bonus-popup #bonus-choice-description {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .dp-bonus-choice h2 { font-size: 1.15rem; }
+  .dp-bonus-popup .dp-choice-grid button {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2px 11px;
+    padding: 10px 12px;
+  }
+  .dp-bonus-popup .dp-choice-mark { grid-row: 1 / span 3; }
+  .dp-bonus-popup .dp-choice-grid button > :not(.dp-choice-mark) { grid-column: 2; }
+}
+@keyframes dp-bonus-lock-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dp-bonus-popup-in {
+  from { opacity: 0; transform: scale(.965); }
+  to { opacity: 1; transform: scale(1); }
+}
 
 @keyframes dp-win-background {
   0% { opacity: 0; transform: translateX(-5%); }
