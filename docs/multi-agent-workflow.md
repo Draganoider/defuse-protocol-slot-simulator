@@ -37,6 +37,8 @@ Every specialist reports:
 
 ## Planned implementation waves
 
+Current progress: Waves 1 and 2 are complete. Wave 3 has the worker simulator and reports, while the advanced configuration editor and import/export remain. Wave 4 has the implemented Alpha/Bravo bonus plus the first approved production visual slice (CORE, WILD, RECOVERY, and the Pelagos Relay environment); the remaining symbol family, richer motion/VFX, audio, and final accessibility/performance review remain.
+
 ### Wave 1 — foundation
 
 - Repository scaffolding and documentation
@@ -64,4 +66,3 @@ Every specialist reports:
 - Motion, VFX, lighting, audio, and accessibility passes
 - Defusal bonus implementation
 - Visual regression, performance, and public-release review
-

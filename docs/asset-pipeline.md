@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-This document defines the **proposed** pipeline for visual, audio, and animation assets. Its purpose is to make assets consistent, performant, accessible, legally redistributable, and appropriate for a public GitHub repository. The repository is an educational virtual-credit simulator; assets must never imply real-money gambling, real-world affiliation, or financial gain.
+This document defines the asset pipeline for visual, audio, and animation assets. It was exercised end to end for the first production visual slice: approved briefs, built-in generation, targeted background extraction, technical WebP preparation, provenance records, runtime integration, small-size review, and browser QA. It exists to make assets consistent, performant, accessible, legally redistributable, and appropriate for a public GitHub repository. The repository is an educational virtual-credit simulator; assets must never imply real-money gambling, real-world affiliation, or financial gain.
 
 This pipeline follows the visual constraints in [art-direction.md](art-direction.md). It does not permit copying, tracing, training from, or stylistically cloning Counter-Strike or any other protected game property.
 
@@ -22,9 +22,9 @@ Brief → approved asset card → original creation/generation → local review
 7. **In-game review:** inspect static, moving, low-resolution, reduced-motion, color-blind, and muted contexts.
 8. **Commit:** add only approved deliverables and their documentation. Build output and source dumps stay untracked.
 
-## Repository layout (proposed)
+## Repository layout
 
-The primary agent should create these paths when implementation begins; this document alone does not create them.
+The first symbol and scene paths are active. UI, VFX, and audio paths remain reserved for future approved assets.
 
 ```text
 src/assets/

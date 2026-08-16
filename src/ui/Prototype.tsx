@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { ReelCanvas, type ReelGrid } from '../renderer/ReelCanvas';
 import './prototype.css';
+
+const DevCheats = import.meta.env.DEV
+  ? lazy(() => import('./dev/DevCheats'))
+  : null;
 
 export type PresentationPhase = 'ready' | 'spinning' | 'result' | 'bonus-choice' | 'bonus';
 export type BonusRoute = 'alpha' | 'bravo';
@@ -86,6 +90,7 @@ export function Prototype(props: PrototypeProps) {
   const activeGrid = props.grid.length ? props.grid : initialGrid;
   const inFeature = props.phase === 'bonus';
   const spinDisabled = props.phase === 'spinning' || props.phase === 'bonus-choice';
+  const wagerControlsDisabled = spinDisabled || inFeature;
   const outcomeMessage = useMemo(() => {
     if (props.phase === 'spinning') return 'Spin result has been committed. Reel display is in motion.';
     if (props.phase === 'bonus-choice') return 'Signal Core containment event. Choose a relay route.';
@@ -120,7 +125,7 @@ export function Prototype(props: PrototypeProps) {
           <Stat label="Last win" value={`${formatCredits(props.lastWin)} VC`} tone="cyan" />
         </dl>
         <div className="dp-control-deck">
-          <div className="dp-wager-controls"><span>Wager</span><button aria-label="Decrease wager" type="button" onClick={() => props.onScaleWager('down')} disabled={spinDisabled}>−</button><output>{formatCredits(props.totalWager)} VC</output><button aria-label="Increase wager" type="button" onClick={() => props.onScaleWager('up')} disabled={spinDisabled}>+</button></div>
+          <div className="dp-wager-controls"><span>Wager</span><button aria-label="Decrease wager" type="button" onClick={() => props.onScaleWager('down')} disabled={wagerControlsDisabled}>−</button><output>{formatCredits(props.totalWager)} VC</output><button aria-label="Increase wager" type="button" onClick={() => props.onScaleWager('up')} disabled={wagerControlsDisabled}>+</button></div>
           <button className="dp-spin-button" type="button" onClick={props.onSpin} disabled={spinDisabled}>{props.phase === 'spinning' ? 'Presenting result…' : inFeature ? 'Continue feature' : 'Spin'}</button>
           <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed}>New seed</button></div>
         </div>
@@ -128,7 +133,11 @@ export function Prototype(props: PrototypeProps) {
       </section>
 
       <section className="dp-provenance" aria-label="Result provenance"><span>Configuration: <code>{props.configId ?? 'pending configuration'}</code></span><span>Seeded results can be replayed.</span><button type="button" onClick={props.onResetSession}>Reset virtual-credit session</button></section>
-      {props.devCheatsEnabled && <DevCheats open={cheatOpen} setOpen={setCheatOpen} onForceBonus={props.onForceBonus} onReset={props.onResetSession} />}
+      {import.meta.env.DEV && props.devCheatsEnabled && DevCheats && (
+        <Suspense fallback={null}>
+          <DevCheats open={cheatOpen} setOpen={setCheatOpen} onForceBonus={props.onForceBonus} onReset={props.onResetSession} />
+        </Suspense>
+      )}
       {props.phase === 'bonus-choice' && <BonusChoice onChoose={props.onChooseBonus} />}
       {labOpen && <LabPanel statistics={props.simulation} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
@@ -153,9 +162,5 @@ function LabPanel({ statistics, running = false, onRun, onClose }: { statistics?
 }
 
 function HelpPanel({ onClose }: { onClose: () => void }) {
-  return <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title"><section className="dp-dialog dp-help"><button className="dp-close" type="button" aria-label="Close paytable and help" onClick={onClose}>×</button><p className="dp-kicker">How this simulator works</p><h2 id="help-title">Paytable & feature guide</h2><div className="dp-help-grid"><section><h3>Base game</h3><p>Wins evaluate on 20 fixed left-to-right paylines. The Containment Lead substitutes for standard symbols; Signal Cores trigger the feature anywhere on the reels.</p><dl><div><dt>Containment Lead</dt><dd>Wild substitute</dd></div><div><dt>Signal Core</dt><dd>3 / 4 / 5 unlock extra feature spins</dd></div><div><dt>Recovery case / relay drone</dt><dd>Higher regular-symbol tiers</dd></div><div><dt>Tools and relay gear</dt><dd>Frequent regular-symbol tiers</dd></div></dl></section><section><h3>Read the lab</h3><p><strong>Any-pay</strong> counts any payout. <strong>Profitable</strong> counts payouts above the total wager. RTP is long-run returned virtual credits divided by total virtual credits wagered.</p><p>Every display result is chosen before presentation. The seed and configuration ID let you replay a result or simulation.</p></section></div></section></div>;
-}
-
-function DevCheats({ open, setOpen, onForceBonus, onReset }: { open: boolean; setOpen: (value: boolean) => void; onForceBonus: PrototypeProps['onForceBonus']; onReset: () => void }) {
-  return <aside className="dp-cheats" aria-label="Development cheats"><button type="button" className="dp-cheats__toggle" onClick={() => setOpen(!open)} aria-expanded={open}>DEV CHEATS {open ? '−' : '+'}</button>{open && <div className="dp-cheats__content"><p>Forced results are test-only requests to the engine; they must remain visibly marked and do not alter RTP calculation rules.</p><div><button type="button" onClick={() => onForceBonus(3)}>Force 3 CORE</button><button type="button" onClick={() => onForceBonus(4)}>Force 4 CORE</button><button type="button" onClick={() => onForceBonus(5)}>Force 5 CORE</button></div><button type="button" className="dp-cheats__reset" onClick={onReset}>Quick reset session</button></div>}</aside>;
+  return <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title"><section className="dp-dialog dp-help"><button className="dp-close" type="button" aria-label="Close paytable and help" onClick={onClose}>×</button><p className="dp-kicker">How this simulator works</p><h2 id="help-title">Paytable & feature guide</h2><div className="dp-help-grid"><section><h3>Base game</h3><p>Wins evaluate on 20 fixed left-to-right paylines. The Containment Specialist substitutes for regular symbols; Signal Cores trigger the feature anywhere on the reels.</p><dl><div><dt>Containment Specialist</dt><dd>WILD substitute</dd></div><div><dt>Signal Core</dt><dd>CORE · 3 / 4 / 5 unlock route spins</dd></div><div><dt>Recovery Case / Precision Platform</dt><dd>Highest regular tiers</dd></div><div><dt>Tactical Carbine / Utility Knife / Suppressed Sidearm</dt><dd>High regular tiers</dd></div><div><dt>Optical Scanner / Armor Rig</dt><dd>Medium regular tiers</dd></div><div><dt>Access Keycard / Field Radio</dt><dd>Frequent regular tiers</dd></div></dl></section><section><h3>Read the lab</h3><p><strong>Any-pay</strong> counts any payout. <strong>Profitable</strong> counts payouts above the total wager. RTP is long-run returned virtual credits divided by total virtual credits wagered.</p><p>Every display result is chosen before presentation. The seed and configuration ID let you replay a result or simulation.</p></section></div></section></div>;
 }

@@ -10,6 +10,7 @@
 | `npm test` | Pass — 4 files, 30 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
+| Playwright development flows | Pass — 5 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -31,36 +32,51 @@ The blank-screen regression was caused by destroying a PixiJS `Application` befo
 its asynchronous initialization completed during React Strict Mode cleanup. The
 renderer now tracks successful initialization before destruction and catches
 initialization failures with a visible fallback. Full 390 px, keyboard,
-reduced-motion, forced-route, and Lab interaction coverage remains recommended.
+reduced-motion, and forced Alpha-entry coverage now runs in Playwright. Keyboard,
+full route completion, Lab interaction, and broader browser coverage remain recommended.
 
 ## Findings
 
-### P2 — production bundle retains development cheat labels
+### Resolved P2 — production bundle retained development cheat labels
 
 **Reproduction:** Run `npm run build`, then search `dist/assets/index-*.js` for
 `DEV CHEATS` or `Force 3 CORE`.
 
-The production bundle contains the presentation component and its cheat-menu strings,
-although the menu is not rendered because the application passes a production-false
-`devCheatsEnabled` flag. The development cheat factory itself is not present in the
-production bundle, so there is no enabled production cheat path. This is a hardening
-issue against the requirement to avoid statically exposing cheat functionality where
-possible; conditionally loading or compiling the cheat presentation only in development
-would remove these strings.
+The cheat presentation now lives in a development-gated lazy module. Development builds
+retain the full menu for forced 3-, 4-, and 5-CORE testing. A production build and an
+explicit search of `dist/assets/` contain none of the cheat labels and generate no
+`DevCheats` chunk. The cheat factory remains absent from the public engine index.
 
-### P3 — wager controls remain enabled during an active feature
+### Resolved P3 — wager controls remained enabled during an active feature
 
 **Reproduction:** Enter either route, then inspect the wager plus/minus controls before
 pressing `Continue feature`.
 
-The UI disables these controls only during `spinning` and `bonus-choice`. The app
-callback rejects wager changes outside base mode, so the math is protected, but the
-controls appear usable during a bonus and silently do nothing. Disable them in the
-presentation whenever a feature is active to match the conflict-control acceptance
-criterion.
+The wager controls are now visibly disabled during an active feature while the
+`Continue feature` control remains enabled. The Playwright forced-Alpha flow verifies
+this presentation state and the existing application callback remains a second guard.
+
+## Grounded production asset QA
+
+The approved visual slice was redesigned after the first version read as excessively
+futuristic. It contains three 512×512 RGBA WebP symbol textures and one 2560×1440 RGB
+WebP environment. File inspection confirmed real alpha ranges for CORE, WILD, and
+RECOVERY. The replacements use grounded contemporary materials: an olive field relay,
+a fictional specialist in ordinary protective workwear, a sand-colored transport case,
+and a sun-worn coastal concrete depot. Each retains a distinct silhouette and readable
+value structure without depending on its accent color.
+
+Live browser review confirmed that the new Pelagos Relay background preserves foreground
+contrast and that the redesigned CORE texture loads in the forced feature grid. The
+cabinet, reel cells, typography, dialog, scoreboard, and primary control now use a
+restrained olive, concrete, canvas, amber, and brass palette without cyan glow effects.
+Production symbols use procedural fallbacks if loading fails. The five Playwright flows
+cover app stability, ordinary spin, the retained development cheat, bonus wager locking,
+390 px overflow, and reduced motion without application console errors.
 
 ## Production cheat boundary
 
-The production build contains no `createDeveloperCheatBonus` reference and the normal
-engine entry point does not export it. The remaining P2 is presentation text, not a
-callable or enabled production cheat path.
+The production build contains no `createDeveloperCheatBonus` reference, the normal
+engine entry point does not export it, and the development-only presentation strings
+are pruned from production output. Development builds intentionally retain the menu for
+QA fixtures.

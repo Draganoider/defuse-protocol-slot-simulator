@@ -14,6 +14,7 @@ The working prototype includes:
 - deterministic `mulberry32-v1` randomness with canonical seeds and replay metadata;
 - Relay Alpha and Relay Bravo feature routes, retriggers, and a 30-spin award cap;
 - a React application shell and PixiJS reel presentation;
+- an original Pelagos Relay environment plus production artwork for CORE, WILD, and RECOVERY, with procedural fallbacks for the remaining symbol family;
 - high-volume, route-specific simulation in a Web Worker;
 - theoretical base-game and bonus-frequency analysis plus clearly labeled observed statistics;
 - a development-only QA menu for forcing 3, 4, or 5 CORE bonus offers; and
@@ -70,7 +71,9 @@ See the [documentation index](docs/README.md), [architecture](docs/architecture.
 
 ## Visual and audio status
 
-The prototype currently uses original procedural graphics, typography, gradients, and code-rendered effects. Production symbol illustration, environmental artwork, animation polish, and audio remain future asset work. Any future asset must follow the [art direction](docs/art-direction.md), provenance rules, and public-repository license policy.
+The first production visual slice is implemented. The game now uses original generated runtime artwork for the Signal Core (`CORE`), Containment Specialist (`WILD`), Recovery Case (`RECOVERY`), and the Pelagos Relay environment. Remaining regular symbols retain original procedural rendering until their reviewed artwork is produced. Richer reel motion, route-specific VFX, and production audio remain future work.
+
+Every runtime image has a public brief, sanitized prompt record, technical-preparation notes, and an approved provenance entry under [`docs/assets/`](docs/assets/). Future assets must follow the same [art direction](docs/art-direction.md), provenance rules, and public-repository license policy.
 
 ## Originality and affiliation
 

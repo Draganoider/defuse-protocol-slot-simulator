@@ -1,6 +1,66 @@
 {
   "$schema": "./manifest.schema.json",
   "version": 1,
-  "assets": []
+  "assets": [
+    {
+      "id": "symbol-signal-core-base-01",
+      "path": "src/assets/symbols/symbol-signal-core-base-01.webp",
+      "kind": "image",
+      "status": "approved",
+      "createdBy": "Yevhen Mishchenko",
+      "creationMethod": "Built-in OpenAI image generation from the sanitized grounded-design prompt, followed by alpha-bounds cropping, fitting inside a 430x430 safe area, centering on a transparent 512x512 canvas, and lossless WebP encoding with Pillow.",
+      "rightsBasis": "Project-owned original generated asset; no input images or third-party references were used.",
+      "license": "MIT",
+      "createdOn": "2026-08-16",
+      "sourceUrl": null,
+      "promptRecord": "docs/assets/prompts/symbol-signal-core-base-01.md",
+      "attribution": null,
+      "notes": "512x512 RGBA WebP with alpha 0-255; 165656 bytes. Grounded field-relay redesign; reviewed for originality, non-explosive reading, small-size clarity, and runtime visibility."
+    },
+    {
+      "id": "symbol-containment-specialist-wild-01",
+      "path": "src/assets/symbols/symbol-containment-specialist-wild-01.webp",
+      "kind": "image",
+      "status": "approved",
+      "createdBy": "Yevhen Mishchenko",
+      "creationMethod": "Built-in OpenAI image generation from the sanitized grounded-design prompt, followed by alpha-bounds cropping, fitting inside a 430x430 safe area, centering on a transparent 512x512 canvas, and lossless WebP encoding with Pillow.",
+      "rightsBasis": "Project-owned original generated asset; no input images or third-party references were used.",
+      "license": "MIT",
+      "createdOn": "2026-08-16",
+      "sourceUrl": null,
+      "promptRecord": "docs/assets/prompts/symbol-containment-specialist-wild-01.md",
+      "attribution": null,
+      "notes": "512x512 RGBA WebP with alpha 0-255; 180672 bytes. Grounded contemporary field-specialist redesign; reviewed for fictional likeness, originality, small-size clarity, and safety."
+    },
+    {
+      "id": "symbol-recovery-case-base-01",
+      "path": "src/assets/symbols/symbol-recovery-case-base-01.webp",
+      "kind": "image",
+      "status": "approved",
+      "createdBy": "Yevhen Mishchenko",
+      "creationMethod": "Built-in OpenAI image generation from the sanitized grounded-design prompt, followed by alpha-bounds cropping, fitting inside a 430x430 safe area, centering on a transparent 512x512 canvas, and lossless WebP encoding with Pillow.",
+      "rightsBasis": "Project-owned original generated asset; no input images or third-party references were used.",
+      "license": "MIT",
+      "createdOn": "2026-08-16",
+      "sourceUrl": null,
+      "promptRecord": "docs/assets/prompts/symbol-recovery-case-base-01.md",
+      "attribution": null,
+      "notes": "512x512 RGBA WebP with alpha 0-255; 190768 bytes. Grounded sand-polymer field-case redesign; reviewed for originality, non-weapon reading, small-size clarity, and safety."
+    },
+    {
+      "id": "scene-pelagos-relay-main-2560x1440",
+      "path": "src/assets/scenes/scene-pelagos-relay-main-2560x1440.webp",
+      "kind": "image",
+      "status": "approved",
+      "createdBy": "Yevhen Mishchenko",
+      "creationMethod": "Built-in OpenAI image generation from the sanitized grounded-design prompt, followed by a minimal center crop to 16:9, Lanczos resizing to 2560x1440, and WebP quality-88 encoding with Pillow.",
+      "rightsBasis": "Project-owned original generated asset; no input images or third-party references were used.",
+      "license": "MIT",
+      "createdOn": "2026-08-16",
+      "sourceUrl": null,
+      "promptRecord": "docs/assets/prompts/scene-pelagos-relay-main-2560x1440.md",
+      "attribution": null,
+      "notes": "2560x1440 RGB WebP; 386096 bytes. Grounded sun-worn coastal-depot redesign; reviewed for originality, safety, central readability, responsive cropping, and runtime visibility."
+    }
+  ]
 }
-

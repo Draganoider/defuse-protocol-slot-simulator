@@ -1,6 +1,6 @@
 # Third-party notices and asset provenance
 
-No third-party media assets have been committed yet.
+No third-party media assets have been committed yet. The repository's original generated runtime images are project assets distributed under the MIT License and documented individually in `docs/assets/manifest.json`; they do not require third-party attribution.
 
 The project currently has these direct software dependencies. Exact installed versions and the full transitive graph are recorded in `package-lock.json`; each dependency remains subject to its own license.
 

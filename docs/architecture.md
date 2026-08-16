@@ -2,7 +2,7 @@
 
 ## Document status
 
-This document describes the implemented architecture of the playable prototype and the boundaries that future work must preserve. The mathematical engine, React shell, PixiJS presentation, simulation worker, and development-cheat boundary are implemented. Final art, audio, broader accessibility verification, and some presentation hardening remain future work.
+This document describes the implemented architecture of the playable prototype and the boundaries that future work must preserve. The mathematical engine, React shell, PixiJS presentation, simulation worker, development-cheat boundary, and first production visual slice are implemented. Remaining symbol art, richer motion/VFX, audio, and broader accessibility verification remain future work.
 
 The foundational decisions are recorded in:
 
@@ -83,7 +83,7 @@ Browser persistence, if added, is limited to non-sensitive preferences, saved se
 
 ### PixiJS presentation
 
-PixiJS owns the rendered tactical scene and uses WebGL for performant composition and effects. The prototype currently renders original procedural symbols and panels; final illustrated assets are future work. PixiJS receives immutable, complete spin results from the application layer. Timing, skipped animations, frame rate, visibility changes, and reduced-motion mode must never alter stops, wins, feature triggers, or payouts.
+PixiJS owns the rendered tactical scene and uses WebGL for performant composition and effects. The renderer preloads approved textures for CORE, WILD, and RECOVERY and retains original procedural fallbacks for every other symbol and for asset-loading failures. The Pelagos Relay environment is a responsive CSS background so accessible React controls and the canvas remain independent of scene imagery. PixiJS receives immutable, complete spin results from the application layer. Timing, skipped animations, frame rate, visibility changes, and reduced-motion mode must never alter stops, wins, feature triggers, or payouts.
 
 Presentation code may derive visual cues from a result, such as highlighting a winning path, but must not recalculate authoritative payouts. A non-animated or reduced-motion presentation must be able to show the same result immediately.
 
@@ -176,14 +176,11 @@ The current Vitest suite contains 30 tests. Its engine and worker coverage inclu
 - exact RTP calculations against small configurations that can be hand-enumerated; and
 - equality of interactive and worker outcomes for the same configuration, seed, and spin count.
 
-### Application and browser follow-up
+### Application and browser coverage
 
-- a spin result is committed before animation starts;
-- skipping or disabling animation does not change the result;
-- theoretical and observed statistics are labeled distinctly;
-- ordinary and forced-bonus controls behave consistently across supported viewports;
-- keyboard, reduced-motion, and responsive-layout behavior; and
-- public builds contain no credentials, local paths, unlicensed assets, or generated dependency/build directories.
+Five Playwright flows now verify that the development app remains visible without runtime errors, an ordinary committed spin returns to ready, the development cheat can force a bonus and locks wager controls, a 390 px viewport has no document overflow, and reduced-motion presentation completes without the normal delay. Manual live-browser review also covers the approved environment and CORE texture in a forced feature grid.
+
+Further coverage should add keyboard traversal, paytable/Lab dialog behavior, visual-regression baselines for all approved symbols, route completion, production deployment, and broader supported-browser checks. Public builds must continue to contain no credentials, local paths, unlicensed assets, generated dependency/build directories, or development-cheat presentation strings.
 
 Simulation convergence tests can detect major regressions, but probabilistic tolerance tests do not replace exact unit tests or theoretical analysis.
 
