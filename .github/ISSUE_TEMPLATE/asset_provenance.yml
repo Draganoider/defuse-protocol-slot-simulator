@@ -1,0 +1,24 @@
+name: Asset or provenance concern
+description: Report an originality, licensing, attribution, or media-safety concern
+title: "[Asset]: "
+labels: [assets, provenance]
+body:
+  - type: input
+    id: path
+    attributes:
+      label: Repository path or asset ID
+    validations:
+      required: true
+  - type: textarea
+    id: concern
+    attributes:
+      label: Concern
+      description: Describe the concern without attaching proprietary files, personal data, credentials, or private source material.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public supporting information
+      description: Provide public links or a concise explanation when safe to do so.
+

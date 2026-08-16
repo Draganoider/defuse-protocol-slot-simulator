@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/defuse-protocol/asset-manifest.schema.json",
+  "title": "Defuse Protocol asset manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "assets"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "kind",
+        "status",
+        "createdBy",
+        "creationMethod",
+        "rightsBasis",
+        "license",
+        "createdOn"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["image", "audio", "font", "video", "other"] },
+        "status": { "enum": ["draft", "review", "approved", "retired"] },
+        "createdBy": { "type": "string", "minLength": 1 },
+        "creationMethod": { "type": "string", "minLength": 1 },
+        "rightsBasis": { "type": "string", "minLength": 1 },
+        "license": { "type": "string", "minLength": 1 },
+        "createdOn": { "type": "string", "format": "date" },
+        "sourceUrl": { "type": ["string", "null"], "format": "uri" },
+        "promptRecord": { "type": ["string", "null"] },
+        "attribution": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
+

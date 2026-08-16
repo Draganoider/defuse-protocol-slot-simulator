@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose an improvement within the educational, virtual-credit scope
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or learning goal
+      description: What should become easier to understand or do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: This proposal uses virtual credits only and adds no payment, prize, withdrawal, or cash-out behavior.
+          required: true
+        - label: This proposal does not require copied commercial-game assets.
+          required: true
+

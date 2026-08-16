@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a reproducible problem in Defuse Protocol
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include the configuration and seed when relevant. Do not include secrets or personal data.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Slot mathematics
+        - Game presentation
+        - Lab and statistics
+        - Accessibility
+        - Documentation
+        - Other
+    validations:
+      required: true
+
