@@ -32,7 +32,7 @@ async function openPrototype(page: Page) {
   await expect(page.getByRole('region', { name: 'Defuse Protocol slot simulator' })).toBeVisible();
 }
 
-async function enterAlphaFeature(page: Page) {
+async function forceCoreChoice(page: Page) {
   const toggle = page.getByRole('button', { name: /^DEV CHEATS/ });
   await expect(toggle).toBeVisible();
   await toggle.click();
@@ -41,8 +41,18 @@ async function enterAlphaFeature(page: Page) {
   const choice = page.getByRole('dialog', { name: 'Choose a relay route' });
   await expect(choice).toBeVisible();
   await expect(page.getByText('Replay DEV-FORCED-3-CORE')).toBeVisible();
-  await choice.getByRole('button', { name: /Relay Alpha/ }).click();
-  await expect(page.getByRole('region', { name: 'Relay Alpha status' })).toBeVisible();
+  return choice;
+}
+
+async function resultFingerprint(page: Page) {
+  const scoreboard = await page.locator('.dp-scoreboard dd').allTextContents();
+  return {
+    scoreboard,
+    feedback: await page.locator('#dp-result-feedback').innerText(),
+    seed: await page.locator('.dp-replay code').innerText(),
+    replay: await page.locator('.dp-replay span').nth(1).innerText(),
+    provenance: await page.getByRole('region', { name: 'Result provenance' }).innerText(),
+  };
 }
 
 test('development app remains visible without runtime errors', async ({ page }) => {
@@ -61,26 +71,82 @@ test('ordinary spin presents its committed result and returns to ready', async (
   await openPrototype(page);
 
   const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  const cabinet = page.getByRole('region', { name: 'Defuse Protocol slot simulator' });
+  const decreaseWager = page.getByRole('button', { name: 'Decrease wager' });
+  const increaseWager = page.getByRole('button', { name: 'Increase wager' });
   await spin.click();
-  await expect(page.getByRole('button', { name: 'Presenting result…' })).toBeVisible();
+  const presenting = page.getByRole('button', { name: 'Presenting result…' });
+  await expect(presenting).toBeVisible();
+  await expect(presenting).toBeDisabled();
+  await expect(cabinet).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#dp-result-feedback')).toContainText('Presenting committed result');
+  await expect(decreaseWager).toBeDisabled();
+  await expect(increaseWager).toBeDisabled();
+  const committedResult = await resultFingerprint(page);
   await expect(spin).toBeVisible();
   await expect(spin).toBeEnabled();
+  await expect(cabinet).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('#dp-result-feedback')).toContainText(/No line payout|\+\d[\d,]* VC/);
+  await expect(decreaseWager).toBeEnabled();
+  await expect(increaseWager).toBeEnabled();
   await expect(page.getByText(/Replay BASE-/)).toBeVisible();
+  const presentedResult = await resultFingerprint(page);
+  expect(presentedResult.scoreboard).toEqual(committedResult.scoreboard);
+  expect(presentedResult.seed).toEqual(committedResult.seed);
+  expect(presentedResult.replay).toEqual(committedResult.replay);
+  expect(presentedResult.provenance).toEqual(committedResult.provenance);
 
   expect(runtimeErrors).toEqual([]);
 });
 
-test('development cheats force a bonus choice and lock wagers during the feature', async ({ page }) => {
-  const runtimeErrors = collectRuntimeErrors(page);
-  await openPrototype(page);
-  await enterAlphaFeature(page);
+for (const route of ['Alpha', 'Bravo'] as const) {
+  test(`Relay ${route} autospins can pause and resume while wagers stay locked`, async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
+    await openPrototype(page);
+    const choice = await forceCoreChoice(page);
+    const decreaseWager = page.getByRole('button', { name: 'Decrease wager' });
+    const increaseWager = page.getByRole('button', { name: 'Increase wager' });
 
-  await expect(page.getByRole('button', { name: 'Continue feature' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Decrease wager' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Increase wager' })).toBeDisabled();
+    await expect(decreaseWager).toBeDisabled();
+    await expect(increaseWager).toBeDisabled();
+    await expect(page.locator('#dp-result-feedback')).toContainText('Feature route required');
+    await choice.getByRole('button', { name: new RegExp(`Relay ${route}`) }).click();
 
-  expect(runtimeErrors).toEqual([]);
-});
+    const featureStatus = page.getByRole('region', { name: `Relay ${route} status` });
+    const pauseAutospins = page.getByRole('button', { name: 'Pause auto spins' });
+    await expect(featureStatus).toBeVisible();
+    await expect(page.locator('#dp-result-feedback')).toContainText('Defuse Operation active');
+    await expect(pauseAutospins).toBeEnabled();
+    await expect(decreaseWager).toBeDisabled();
+    await expect(increaseWager).toBeDisabled();
+
+    await pauseAutospins.click();
+    const resumeAutospins = page.getByRole('button', { name: 'Resume auto spins' });
+    await expect(resumeAutospins).toBeEnabled();
+    await expect(page.locator('#dp-result-feedback')).toContainText('Automatic spins paused');
+    await page.waitForTimeout(800);
+    await expect(page.getByText('Replay DEV-FORCED-3-CORE')).toBeVisible();
+
+    await resumeAutospins.click();
+    await expect(page.getByRole('button', { name: 'Presenting result…' })).toBeDisabled();
+    await expect(page.locator('#dp-result-feedback')).toContainText('Presenting committed result');
+    await expect(pauseAutospins).toBeEnabled();
+    await pauseAutospins.click();
+    await expect(resumeAutospins).toBeEnabled();
+    await expect(featureStatus).toBeVisible();
+    await expect(page.locator('#dp-result-feedback')).toContainText('Defuse Operation active');
+    await expect(decreaseWager).toBeDisabled();
+    await expect(increaseWager).toBeDisabled();
+    await expect(page.getByText(/Replay BONUS-/)).toBeVisible();
+    if (route === 'Alpha') {
+      await expect(page.getByRole('progressbar', { name: 'Containment charges' })).toBeVisible();
+    } else {
+      await expect(page.locator('output[aria-label$="times multiplier"]')).toBeVisible();
+    }
+
+    expect(runtimeErrors).toEqual([]);
+  });
+}
 
 test('390px viewport has no document-level horizontal overflow', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
@@ -109,7 +175,30 @@ test.describe('reduced motion', () => {
     await spin.click();
     await expect(spin).toBeVisible({ timeout: 300 });
     await expect(spin).toBeEnabled();
+    const stableResult = await resultFingerprint(page);
+    await page.waitForTimeout(650);
+    expect(await resultFingerprint(page)).toEqual(stableResult);
 
     expect(runtimeErrors).toEqual([]);
   });
+});
+
+test('motion preference does not change a deterministic result or its provenance', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  await page.getByRole('button', { name: 'Spin', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeEnabled();
+  const animatedResult = await resultFingerprint(page);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
+  await expect(page.getByRole('heading', { name: 'Defuse Protocol' })).toBeVisible();
+  await page.getByRole('button', { name: 'Spin', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeEnabled({ timeout: 300 });
+  const reducedResult = await resultFingerprint(page);
+
+  expect(reducedResult).toEqual(animatedResult);
+  expect(runtimeErrors).toEqual([]);
 });

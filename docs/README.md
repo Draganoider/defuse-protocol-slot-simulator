@@ -8,6 +8,7 @@ This directory is the durable source of truth for product, engineering, mathemat
 - `architecture.md` — runtime architecture, module boundaries, and data flow
 - `math-model.md` — reels, paylines, payouts, RTP, volatility, bonuses, and simulation
 - `art-direction.md` — original realistic tactical visual language and asset constraints
+- `presentation-motion.md` — implemented result-driven reel motion, feedback, timing, and accessibility contract
 - `asset-pipeline.md` — generation, review, optimization, attribution, and animation workflow
 - `multi-agent-workflow.md` — agent roles, ownership, model selection, and handoff protocol
 - `public-repository-checklist.md` — licensing, safety, security, attribution, and release checks

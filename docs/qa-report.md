@@ -10,7 +10,7 @@
 | `npm test` | Pass — 4 files, 30 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
-| Playwright development flows | Pass — 5 tests |
+| Playwright development flows | Pass — 7 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -49,30 +49,56 @@ explicit search of `dist/assets/` contain none of the cheat labels and generate 
 
 ### Resolved P3 — wager controls remained enabled during an active feature
 
-**Reproduction:** Enter either route, then inspect the wager plus/minus controls before
-pressing `Continue feature`.
+**Reproduction:** Enter either route, then inspect the wager plus/minus controls while
+automatic free spins are active or paused.
 
 The wager controls are now visibly disabled during an active feature while the
-`Continue feature` control remains enabled. The Playwright forced-Alpha flow verifies
-this presentation state and the existing application callback remains a second guard.
+Pause/Resume autoplay control remains enabled between presentations. Playwright verifies
+this presentation state for both routes and the application callback remains a second guard.
 
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively
-futuristic. It contains three 512×512 RGBA WebP symbol textures and one 2560×1440 RGB
-WebP environment. File inspection confirmed real alpha ranges for CORE, WILD, and
-RECOVERY. The replacements use grounded contemporary materials: an olive field relay,
-a fictional specialist in ordinary protective workwear, a sand-colored transport case,
-and a sun-worn coastal concrete depot. Each retains a distinct silhouette and readable
-value structure without depending on its accent color.
+futuristic. It now contains eleven 512×512 RGBA WebP symbol textures and one 2560×1440
+RGB WebP environment. File inspection confirmed real 0–255 alpha ranges for the complete
+symbol family. The artwork uses grounded late-1990s/early-2000s materials: worn olive
+equipment, canvas, dull steel, sand polymer, and a sun-worn coastal concrete depot.
+The Carbine and Sidearm are original unbranded fictional designs, isolated without firing,
+ammunition, people, combat context, or decorative skins. Every symbol retains a distinct
+silhouette and readable value structure without depending on its accent color.
 
 Live browser review confirmed that the new Pelagos Relay background preserves foreground
 contrast and that the redesigned CORE texture loads in the forced feature grid. The
 cabinet, reel cells, typography, dialog, scoreboard, and primary control now use a
 restrained olive, concrete, canvas, amber, and brass palette without cyan glow effects.
-Production symbols use procedural fallbacks if loading fails. The five Playwright flows
-cover app stability, ordinary spin, the retained development cheat, bonus wager locking,
-390 px overflow, and reduced motion without application console errors.
+Production symbols use procedural fallbacks if loading fails. The seven Playwright flows
+cover app stability, committed-result locking and provenance, the retained development
+cheat, both Alpha and Bravo continuations, bonus wager locking, 390 px overflow, reduced
+motion stability, and deterministic equality across motion preferences without application
+console errors.
+
+## Result-driven motion QA
+
+The application derives exact winning cells from the authoritative `SpinResult` and
+passes them to PixiJS alongside the already committed grid and selected bonus route.
+Live review confirmed staggered reel settling, restrained landing response, CORE rings,
+and distinct Alpha/Bravo rails. React exposes the same state through visible text, an
+atomic polite live region, `aria-busy`, Alpha progress semantics, and Bravo multiplier
+and protection labels. A fresh browser session produced no warning or error logs; stale
+HMR messages in the long-lived development tab were not reproducible after a clean load.
+
+Automated comparison confirms that the scoreboard, seed, replay identifier, and
+configuration provenance do not change across the normal presentation boundary. A
+second deterministic comparison confirms identical result/provenance fingerprints when
+the same seed is run with normal and reduced-motion presentation.
+
+Bonus autoplay QA covers both routes. Route selection enables autoplay, Pause prevents
+the pending spin from being requested, Resume requests exactly one engine transition
+before presentation, and the next request waits until that presentation completes. Live
+review confirmed the paused Alpha state, disabled wager controls, remaining-spin meter,
+CORE treatment, and visible development-fixture provenance. The complete eleven-symbol
+contact sheet and desktop/mobile runtime layouts were reviewed; the 390 px document has
+no horizontal overflow and a fresh browser session reports no warnings or errors.
 
 ## Production cheat boundary
 

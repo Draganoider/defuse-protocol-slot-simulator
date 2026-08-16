@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-This document defines the asset pipeline for visual, audio, and animation assets. It was exercised end to end for the first production visual slice: approved briefs, built-in generation, targeted background extraction, technical WebP preparation, provenance records, runtime integration, small-size review, and browser QA. It exists to make assets consistent, performant, accessible, legally redistributable, and appropriate for a public GitHub repository. The repository is an educational virtual-credit simulator; assets must never imply real-money gambling, real-world affiliation, or financial gain.
+This document defines the asset pipeline for visual, audio, and animation assets. It was exercised end to end for the complete eleven-symbol production family and Pelagos Relay environment: approved briefs, built-in generation, targeted background extraction where needed, technical WebP preparation, provenance records, runtime integration, small-size review, and browser QA. It exists to make assets consistent, performant, accessible, legally redistributable, and appropriate for a public GitHub repository. The repository is an educational virtual-credit simulator; assets must never imply real-money gambling, real-world affiliation, or financial gain.
 
 This pipeline follows the visual constraints in [art-direction.md](art-direction.md). It does not permit copying, tracing, training from, or stylistically cloning Counter-Strike or any other protected game property.
 
@@ -24,7 +24,7 @@ Brief → approved asset card → original creation/generation → local review
 
 ## Repository layout
 
-The first symbol and scene paths are active. UI, VFX, and audio paths remain reserved for future approved assets.
+The symbol and scene paths are active. UI, VFX, and audio paths remain reserved for future approved assets. The optional preparation utility requires Python 3 and Pillow; it is not part of the browser runtime or npm dependency graph.
 
 ```text
 src/assets/
@@ -37,6 +37,8 @@ docs/assets/
   manifest.json            # provenance and licensing manifest
   prompts/                 # approved sanitized prompt records
   briefs/                  # asset cards / family briefs
+scripts/
+  process-symbol-asset.py  # alpha-crop and 512×512 lossless WebP preparation
 ```
 
 If Git LFS is later introduced for large binary assets, record that decision in an ADR and describe contributor setup in public documentation. Do not use LFS merely to hide unclear provenance.

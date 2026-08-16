@@ -2,7 +2,7 @@
 
 ## Document status
 
-This document describes the implemented architecture of the playable prototype and the boundaries that future work must preserve. The mathematical engine, React shell, PixiJS presentation, simulation worker, development-cheat boundary, and first production visual slice are implemented. Remaining symbol art, richer motion/VFX, audio, and broader accessibility verification remain future work.
+This document describes the implemented architecture of the playable prototype and the boundaries that future work must preserve. The mathematical engine, React shell, result-driven PixiJS presentation, simulation worker, development-cheat boundary, complete production symbol family, and first production motion slice are implemented. Production audio, advanced configuration tools, and broader accessibility/performance verification remain future work.
 
 The foundational decisions are recorded in:
 
@@ -77,13 +77,13 @@ The mathematical model and unresolved decisions are described in [Math model](ma
 
 ### React application shell
 
-React owns user-interface concerns such as virtual-credit controls, route choice, help, reduced-motion preferences, and theoretical-versus-observed statistics labels. It manages immutable session transitions through the public engine API rather than embedding payout rules in components.
+React owns user-interface concerns such as virtual-credit controls, route choice, bonus-autoplay scheduling, help, reduced-motion preferences, and theoretical-versus-observed statistics labels. It manages immutable session transitions through the public engine API rather than embedding payout rules in components. Bonus autoplay requests one ordinary `spinBonus` transition at a time only after the preceding committed result has finished presenting; Pause/Resume changes future scheduling and never mutates a generated result.
 
 Browser persistence, if added, is limited to non-sensitive preferences, saved seeds, and local simulator configurations. Stored data must be schema-versioned and revalidated when loaded. There is no required server or account system in the initial architecture.
 
 ### PixiJS presentation
 
-PixiJS owns the rendered tactical scene and uses WebGL for performant composition and effects. The renderer preloads approved textures for CORE, WILD, and RECOVERY and retains original procedural fallbacks for every other symbol and for asset-loading failures. The Pelagos Relay environment is a responsive CSS background so accessible React controls and the canvas remain independent of scene imagery. PixiJS receives immutable, complete spin results from the application layer. Timing, skipped animations, frame rate, visibility changes, and reduced-motion mode must never alter stops, wins, feature triggers, or payouts.
+PixiJS owns the rendered tactical scene and uses WebGL for performant composition and effects. The renderer preloads approved textures for all eleven reel symbols and retains original procedural fallbacks for asset-loading failures. The Pelagos Relay environment is a responsive CSS background so accessible React controls and the canvas remain independent of scene imagery. PixiJS receives an immutable complete grid plus application-derived winning cells and route metadata. It implements staggered reel settling, restrained landing/result emphasis, CORE activation, and distinct Alpha/Bravo atmosphere. Timing, skipped animations, frame rate, visibility changes, and reduced-motion mode never alter stops, wins, feature triggers, or payouts.
 
 Presentation code may derive visual cues from a result, such as highlighting a winning path, but must not recalculate authoritative payouts. A non-animated or reduced-motion presentation must be able to show the same result immediately.
 
@@ -178,7 +178,7 @@ The current Vitest suite contains 30 tests. Its engine and worker coverage inclu
 
 ### Application and browser coverage
 
-Five Playwright flows now verify that the development app remains visible without runtime errors, an ordinary committed spin returns to ready, the development cheat can force a bonus and locks wager controls, a 390 px viewport has no document overflow, and reduced-motion presentation completes without the normal delay. Manual live-browser review also covers the approved environment and CORE texture in a forced feature grid.
+Seven Playwright flows now verify that the development app remains visible without runtime errors, an ordinary committed spin locks controls and preserves its result/provenance through presentation, both Alpha and Bravo forced-feature routes autoplay one deterministic result at a time with usable Pause/Resume and wager locks, a 390 px viewport has no document overflow, reduced-motion presentation completes without the normal delay and stays stable, and normal versus reduced motion produces identical deterministic result/provenance data. Manual live-browser review also covers the approved environment, complete symbol family, exact winning-cell treatment, and CORE texture in a forced feature grid.
 
 Further coverage should add keyboard traversal, paytable/Lab dialog behavior, visual-regression baselines for all approved symbols, route completion, production deployment, and broader supported-browser checks. Public builds must continue to contain no credentials, local paths, unlicensed assets, generated dependency/build directories, or development-cheat presentation strings.
 

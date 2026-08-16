@@ -4,7 +4,7 @@
 
 This document defines the visual and sound direction for Defuse Protocol, a free, educational slot-machine simulator using virtual credits. It is the shared brief for implementation, asset creation, and review. It does not authorize real-money gambling features or use of third-party intellectual property.
 
-The playable prototype combines original procedural graphics with its first approved production visual slice. Generated and reviewed runtime artwork now covers the Signal Core (`CORE`), Containment Specialist (`WILD`), Recovery Case (`RECOVERY`), and Pelagos Relay environment. Procedural rendering remains the fallback and still presents the other regular symbols. The rest of the illustrated symbol family, animation polish, and all production audio remain future work subject to the asset-provenance policy.
+The playable prototype combines original procedural fallbacks with an approved production visual and motion slice. Generated and reviewed runtime artwork covers the complete eleven-symbol family and the Pelagos Relay environment. Staggered reel settling, winning-cell emphasis, CORE activation, route atmosphere, bonus autoplay, and accessible result feedback are implemented. Production audio remains future work subject to the asset-provenance policy.
 
 Defuse Protocol must feel like an original, realistic, gritty tactical operation at an invented industrial site. Familiarity comes from the broad visual grammar of classic competitive tactical games: strong silhouettes, practical contemporary equipment, sun-worn masonry, restrained field-console UI, and fast amber-versus-neutral state reading. It must never imitate Counter-Strike or any particular game, map, character, composition, interface, military organization, or weapon manufacturer.
 
@@ -67,12 +67,12 @@ The math configuration owns the paytable. Art must use the following implemented
 | Tier | Implemented IDs and display names | Readability treatment |
 | --- | --- | --- |
 | High regular | `RECOVERY` Recovery Case; `PRECISION` Precision Platform; `CARBINE` Tactical Carbine | large isolated silhouette, metallic edge light, controlled reward-gold detail; fictionalized forms only |
-| Mid regular | `KNIFE` Utility Knife; `SIDEARM` Suppressed Sidearm; `OPTIC` Optical Scanner | single recognizable fictional tool or instrument, amber or muted-green coding, no complex backdrop |
+| Mid regular | `KNIFE` Utility Knife; `SIDEARM` Suppressed Sidearm; `OPTIC` Optical Scanner | single recognizable fictional object, amber or muted-green coding, no complex backdrop |
 | Low regular | `ARMOR` Armor Rig; `KEYCARD` Access Keycard; `RADIO` Field Radio | bold graphic object, geometric color block, maximum value contrast |
 | Wild | `WILD` Containment Specialist | unique vertical credential or specialist silhouette, amber-gold border, persistent but restrained pulse |
 | Scatter / feature | `CORE` Signal Core | compact rectangular field-relay silhouette, analog meter and protected amber lamp, unmistakable CORE label |
 
-Symbols must be original. Do not generate branded firearms, recognizable gun silhouettes, licensed equipment, military insignia, or exact real-world equipment models. If a tool, weapon-like prop, or device could dominate recognition, make it a fictional relay or recovery instrument instead.
+Symbols must be original. Grounded weapon symbols may use believable contemporary construction, practical proportions, and restrained wear, but must be unbranded fictional designs rather than replicas of a specific manufacturer, exact real-world model, game weapon, skin, or composition. They are isolated collection-style props with no firing, ammunition display, combat scene, person handling them, or graphic violence. All equipment remains free of military insignia and real-world affiliation.
 
 ### Reel readability rules
 
@@ -98,14 +98,14 @@ UI combines a robust field console with a premium casino-game clarity. It is not
 
 ### Motion and VFX
 
-The prototype already uses restrained code-rendered motion and result-driven reel presentation. The richer effects below are the production target and must continue to display an outcome generated before animation starts.
+The prototype implements restrained result-driven reel presentation. It uses per-reel deceleration, mechanical settle, exact winning-cell outlines, short result sweeps, CORE activation rings, and route-specific rails. Any future effects must continue to display an outcome generated before animation starts.
 
 Motion should read as a heavy, reliable field instrument.
 
-- Reels use weighted deceleration, subtle mechanical settle, and a result lock that occurs only after the engine has produced the outcome.
+- Reels use weighted deceleration, subtle mechanical settle, and a result lock that occurs only after the engine has produced the outcome. This is implemented with a 244 ms base and 47 ms per-reel stagger.
 - Ambient effects: sparse dust motes, heat haze, a subtle canvas edge movement, and occasional status-light sweep.
-- Win effects: short amber edge sweep, grounded spark particles, a small vapor burst, then an unobtrusive win counter.
-- Feature effects: meter needles, relay pips, brief signal distortion, and an amber containment pulse. Avoid holograms, explosions, gunfire, shell casings, shock imagery, or combat simulation.
+- Implemented win effects: short amber edge sweep, exact winning-cell outlines, restrained landing response, and an unobtrusive textual win confirmation. Grounded particles and vapor remain optional future polish.
+- Implemented feature effects: CORE activation rings, Alpha containment rails, and Bravo recovery rails. Meter needles, relay pips, and brief signal distortion remain optional future polish. Avoid holograms, explosions, gunfire, shell casings, shock imagery, or combat simulation.
 - Respect `prefers-reduced-motion`: remove camera shake, reduce particle count, halt ambient motion, and replace flashes with static outlines.
 - Do not use uncontrolled strobing. Any repeated flash must be below 3 Hz and never be the only communication of state.
 
