@@ -28,6 +28,9 @@ export interface WinningPath {
   readonly winningPositions?: readonly ReelCell[];
 }
 
+export const WIN_PATH_CYCLE_MS = 900;
+export const MAX_PRESENTED_WIN_PATHS = 4;
+
 export interface ReelCanvasProps {
   /** The complete grid selected by the engine. This component never changes it. */
   grid: ReelGrid;
@@ -58,8 +61,8 @@ const MOTION = {
   reelStaggerMs: 47,
   resultEmphasisMs: 460,
   winPathDrawMs: 620,
-  winPathCycleMs: 1_100,
-  winResponseMs: 3_400,
+  winPathCycleMs: WIN_PATH_CYCLE_MS,
+  winResponseMs: WIN_PATH_CYCLE_MS * MAX_PRESENTED_WIN_PATHS,
   corePulseMs: 1_400,
 } as const;
 
@@ -348,14 +351,18 @@ function drawWinningPaths(
       .filter(({ row, column }) => Number.isInteger(row) && Number.isInteger(column) && row >= 0 && column >= 0 && row < rows && column < columns)
       .slice()
       .sort((left, right) => left.column - right.column),
-  })).filter((path) => path.positions.length > 0);
+  }))
+    .filter((path) => path.positions.length > 0)
+    .sort((left, right) => right.payout - left.payout || left.lineIndex - right.lineIndex)
+    .slice(0, MAX_PRESENTED_WIN_PATHS);
   if (validPaths.length === 0) return;
 
-  const settled = elapsed >= MOTION.winResponseMs;
-  const activeIndex = reducedMotion || settled ? 0 : Math.floor(elapsed / MOTION.winPathCycleMs) % validPaths.length;
+  const sequenceDuration = validPaths.length * MOTION.winPathCycleMs;
+  if (!reducedMotion && elapsed >= sequenceDuration) return;
+  const activeIndex = reducedMotion ? 0 : Math.floor(elapsed / MOTION.winPathCycleMs);
   const activePath = validPaths[activeIndex];
-  const cycleElapsed = reducedMotion || settled ? MOTION.winPathDrawMs + 90 : elapsed % MOTION.winPathCycleMs;
-  const drawProgress = reducedMotion || settled ? 1 : easeOutCubic(clamp01((cycleElapsed - 90) / MOTION.winPathDrawMs));
+  const cycleElapsed = reducedMotion ? MOTION.winPathDrawMs + 90 : elapsed % MOTION.winPathCycleMs;
+  const drawProgress = reducedMotion ? 1 : easeOutCubic(clamp01((cycleElapsed - 90) / MOTION.winPathDrawMs));
   const activeKeys = new Set(activePath.positions.map(({ row, column }) => `${row}:${column}`));
   const payingPositions = activePath.winningPositions?.length ? activePath.winningPositions : activePath.positions;
 
@@ -597,10 +604,10 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const hasCore = state.grid.some((row) => row.some((id) => id.toUpperCase() === 'CORE'));
         const isSettled = state.phase === 'result' || state.phase === 'bonus-choice' || state.phase === 'bonus';
         const animateResult = isSettled && elapsed < MOTION.resultEmphasisMs;
-        // Keep the ticker alive for a final frame after the response window so
-        // the renderer settles on a complete, persistent path instead of the
-        // beginning of a new cycle.
-        const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < MOTION.winResponseMs + 64;
+        // Keep one extra frame after the last displayed line so the final path
+        // is cleared instead of remaining over the next presentation state.
+        const winSequenceMs = Math.min(state.winningPaths.length, MAX_PRESENTED_WIN_PATHS) * MOTION.winPathCycleMs;
+        const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < winSequenceMs + 64;
         const animateCore = (state.phase === 'bonus-choice' || state.phase === 'bonus') && hasCore && elapsed < MOTION.corePulseMs;
         if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateWin || animateCore)) render();
       });

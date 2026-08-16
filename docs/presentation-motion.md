@@ -17,21 +17,24 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 3. The UI enters `spinning`; controls lock and the live region states that a committed result is being presented.
 4. Reels decelerate with a 244 ms base duration and 47 ms stagger per column. The fifth reel settles by 432 ms.
 5. At 520 ms the application enters the authoritative next phase: result, route choice, or active bonus.
-6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Multiple wins cycle without changing their order or values.
+6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, fades, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
 7. After the trace lands, a large `+N VC` total, full-symbol-name payline ledger, and restrained cabinet/background response confirm the same committed payout. CORE positions receive a short activation ring during bonus entry.
 
 Ordinary symbol textures carry no three-letter abbreviations. The functional `CORE` and `WILD` marks use condensed industrial nameplates, while the accessible HTML ledger supplies full symbol names and exact per-line virtual-credit values.
+
+The scoreboard and control deck remain directly below the reels in every base-game state. Dynamic win totals, feedback, and line ledgers render after that fixed control region, so a result cannot move the Spin button away from the pointer between clicks.
 
 Relay Alpha uses muted signal-green and brass containment rails. Relay Bravo uses oxide and amber recovery rails. Before a route is chosen, the route dialog and canvas use a restrained dual-tone state. These treatments communicate a selected route but do not alter feature behavior.
 
 ## Bonus autoplay
 
-Choosing either route enables automatic free spins. React waits 650 ms after an active-feature no-win presentation becomes ready, invokes one deterministic `spinBonus` transition, commits that result, and only then begins its 520 ms presentation. A winning feature result is held for 1,800 ms so its payline trace, ledger, and confirmed total remain readable before the next request. It schedules the following spin only after the preceding presentation completes. Pause/Resume controls future scheduling; pausing during or after a presentation never cancels, redraws, or mutates a committed result. Session reset and route entry return autoplay to its default enabled state.
+Choosing either route enables automatic free spins. React waits 650 ms after an active-feature no-win presentation becomes ready, invokes one deterministic `spinBonus` transition, commits that result, and only then begins its 520 ms presentation. A winning feature result is held for at least 1,800 ms and, for multi-line wins, until 200 ms after the final displayed 900 ms line slot. It schedules the following spin only after the preceding presentation completes. Pause/Resume controls future scheduling; pausing during or after a presentation never cancels, redraws, or mutates a committed result. Session reset and route entry return autoplay to its default enabled state.
 
 ## Accessibility and failure behavior
 
 - Reduced motion skips the presentation delay and shows a stable final grid with a static payline, ledger, and confirmed total.
 - The cabinet exposes `aria-busy` only while presenting the committed result.
+- Space invokes the same base-game Spin intent as the button. Repeats, modified key presses, active dialogs, focused interactive controls, feature autoplay, and locked presentation states do not trigger it.
 - A polite atomic live region announces locked, winning, no-payout, route-choice, and active-feature states.
 - Relay Alpha exposes containment charges as a semantic progress bar.
 - Relay Bravo exposes its current multiplier and protection state as text.

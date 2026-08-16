@@ -1,5 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { ReelCanvas, type ReelCell, type ReelGrid, type WinningPath } from '../renderer/ReelCanvas';
+import {
+  MAX_PRESENTED_WIN_PATHS,
+  WIN_PATH_CYCLE_MS,
+  ReelCanvas,
+  type ReelCell,
+  type ReelGrid,
+  type WinningPath,
+} from '../renderer/ReelCanvas';
 import './prototype.css';
 
 const DevCheats = import.meta.env.DEV
@@ -196,6 +203,19 @@ export function Prototype(props: PrototypeProps) {
     if (!props.devCheatsEnabled) setCheatOpen(false);
   }, [props.devCheatsEnabled]);
 
+  useEffect(() => {
+    const handleSpaceSpin = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (spinDisabled || inFeature || helpOpen || labOpen || cheatOpen) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('button, a, input, select, textarea, [contenteditable="true"], [role="dialog"]')) return;
+      event.preventDefault();
+      props.onSpin();
+    };
+    window.addEventListener('keydown', handleSpaceSpin);
+    return () => window.removeEventListener('keydown', handleSpaceSpin);
+  }, [cheatOpen, helpOpen, inFeature, labOpen, props.onSpin, spinDisabled]);
+
   return (
     <main className={prototypeClassName}>
       <span className="dp-win-ambient" aria-hidden="true" />
@@ -213,7 +233,30 @@ export function Prototype(props: PrototypeProps) {
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
         <div className="dp-reel-frame">
           <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={props.bonus?.route} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
-          {hasPresentedWin && strongestPath && <PaylineOverlay path={strongestPath} />}
+          {hasPresentedWin && winningPaths.length > 0 && <PaylineOverlay paths={winningPaths} reducedMotion={props.reducedMotion} />}
+        </div>
+        <dl className="dp-scoreboard">
+          <Stat label="Balance" value={`${formatCredits(props.balance)} VC`} />
+          <Stat label="Total wager" value={`${formatCredits(props.totalWager)} VC`} tone="amber" />
+          <Stat label="Last win" value={`${formatCredits(props.lastWin)} VC`} tone="cyan" />
+        </dl>
+        <div className="dp-control-deck">
+          <div className="dp-wager-controls"><span>Wager</span><button aria-label="Decrease wager" type="button" onClick={() => props.onScaleWager('down')} disabled={wagerControlsDisabled}>−</button><output>{formatCredits(props.totalWager)} VC</output><button aria-label="Increase wager" type="button" onClick={() => props.onScaleWager('up')} disabled={wagerControlsDisabled}>+</button></div>
+          <button
+            className="dp-spin-button"
+            type="button"
+            onClick={inFeature ? props.onToggleBonusAutoplay : props.onSpin}
+            disabled={spinDisabled}
+            aria-keyshortcuts={inFeature ? undefined : 'Space'}
+            title={inFeature ? undefined : 'Spin (Space)'}
+          >
+            {props.phase === 'spinning'
+              ? 'Presenting result…'
+              : inFeature
+                ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
+                : 'Spin'}
+          </button>
+          <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed}>New seed</button></div>
         </div>
         {hasPresentedWin && (
           <div className="dp-win-total" aria-hidden="true">
@@ -235,27 +278,6 @@ export function Prototype(props: PrototypeProps) {
           <span>{outcomeFeedback.detail}</span>
         </section>
         {hasPresentedWin && winningPaths.length > 0 && <WinLedger paths={winningPaths} />}
-        <dl className="dp-scoreboard">
-          <Stat label="Balance" value={`${formatCredits(props.balance)} VC`} />
-          <Stat label="Total wager" value={`${formatCredits(props.totalWager)} VC`} tone="amber" />
-          <Stat label="Last win" value={`${formatCredits(props.lastWin)} VC`} tone="cyan" />
-        </dl>
-        <div className="dp-control-deck">
-          <div className="dp-wager-controls"><span>Wager</span><button aria-label="Decrease wager" type="button" onClick={() => props.onScaleWager('down')} disabled={wagerControlsDisabled}>−</button><output>{formatCredits(props.totalWager)} VC</output><button aria-label="Increase wager" type="button" onClick={() => props.onScaleWager('up')} disabled={wagerControlsDisabled}>+</button></div>
-          <button
-            className="dp-spin-button"
-            type="button"
-            onClick={inFeature ? props.onToggleBonusAutoplay : props.onSpin}
-            disabled={spinDisabled}
-          >
-            {props.phase === 'spinning'
-              ? 'Presenting result…'
-              : inFeature
-                ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
-                : 'Spin'}
-          </button>
-          <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed}>New seed</button></div>
-        </div>
         {inFeature && <FeatureMeter bonus={props.bonus} />}
       </section>
 
@@ -291,16 +313,26 @@ function WinLedger({ paths }: { paths: readonly WinningPath[] }) {
   );
 }
 
-function PaylineOverlay({ path }: { path: WinningPath }) {
-  const points = path.positions.map(({ column, row }) => `${column},${row}`).join(' ');
-  const payingPositions = path.winningPositions?.length ? path.winningPositions : path.positions;
+function PaylineOverlay({ paths, reducedMotion }: { paths: readonly WinningPath[]; reducedMotion?: boolean }) {
+  const displayedPaths = [...paths]
+    .sort((left, right) => right.payout - left.payout || left.lineIndex - right.lineIndex)
+    .slice(0, reducedMotion ? 1 : MAX_PRESENTED_WIN_PATHS);
   return (
     <svg className="dp-payline-overlay" viewBox="-0.5 -0.5 5 3" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <polyline className="dp-payline-overlay__shadow" points={points} pathLength="1" />
-      <polyline className="dp-payline-overlay__trace" points={points} pathLength="1" />
-      {payingPositions.map(({ column, row }) => (
-        <circle key={`${column}-${row}`} className="dp-payline-overlay__contact" cx={column} cy={row} r="0.055" />
-      ))}
+      {displayedPaths.map((path, index) => {
+        const delay = index * WIN_PATH_CYCLE_MS;
+        const points = path.positions.map(({ column, row }) => `${column},${row}`).join(' ');
+        const payingPositions = path.winningPositions?.length ? path.winningPositions : path.positions;
+        return (
+          <g key={`${path.lineIndex}-${path.symbolId}`} className="dp-payline-overlay__path" data-line={path.lineIndex + 1} style={{ animationDelay: `${delay}ms` }}>
+            <polyline className="dp-payline-overlay__shadow" points={points} pathLength="1" style={{ animationDelay: `${delay}ms` }} />
+            <polyline className="dp-payline-overlay__trace" points={points} pathLength="1" style={{ animationDelay: `${delay}ms` }} />
+            {payingPositions.map(({ column, row }) => (
+              <circle key={`${column}-${row}`} className="dp-payline-overlay__contact" cx={column} cy={row} r="0.055" style={{ animationDelay: `${delay + 360}ms` }} />
+            ))}
+          </g>
+        );
+      })}
     </svg>
   );
 }

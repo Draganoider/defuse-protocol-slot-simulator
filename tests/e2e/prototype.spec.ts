@@ -99,12 +99,33 @@ test('ordinary spin presents its committed result and returns to ready', async (
   expect(runtimeErrors).toEqual([]);
 });
 
+test('Space triggers one base spin and is ignored while presentation or dialogs lock play', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  await expect(spin).toHaveAttribute('aria-keyshortcuts', 'Space');
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('button', { name: 'Presenting result…' })).toBeDisabled();
+  await page.keyboard.press('Space');
+  await expect(spin).toBeEnabled();
+  await expect(page.getByText('Replay BASE-0-5')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Paytable & help' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(50);
+  await expect(page.getByText('Replay BASE-0-5')).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test('winning result exposes a payline ledger and prominent committed total', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openPrototype(page);
 
   const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  const initialSpinY = await spin.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   let foundWin = false;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await spin.click();
@@ -124,7 +145,39 @@ test('winning result exposes a payline ledger and prominent committed total', as
   await expect(page.getByRole('region', { name: 'Winning paylines' })).toBeVisible();
   await expect(page.locator('.dp-win-ledger li').first()).toContainText(/Line \d{2}/);
   await expect(page.locator('#dp-result-feedback')).toContainText(/Strongest: line \d+/);
+  const winningSpinY = await spin.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+  expect(winningSpinY).toBe(initialSpinY);
 
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('animated paylines advance once and clear after the win sequence', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  let foundWin = false;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await spin.click();
+    await page.waitForTimeout(650);
+    if (await page.locator('.dp-win-ledger').count()) {
+      foundWin = true;
+      break;
+    }
+    expect(await page.getByRole('dialog', { name: 'Choose a relay route' }).count()).toBe(0);
+  }
+
+  expect(foundWin).toBe(true);
+  const paths = page.locator('.dp-payline-overlay__path');
+  const pathCount = await paths.count();
+  expect(pathCount).toBeGreaterThan(0);
+  expect(pathCount).toBeLessThanOrEqual(4);
+  const activeOpacity = Number(await paths.first().evaluate((element) => getComputedStyle(element).opacity));
+  expect(activeOpacity).toBeGreaterThan(0);
+
+  await page.waitForTimeout(pathCount * 900 + 150);
+  const settledOpacities = await paths.evaluateAll((elements) => elements.map((element) => Number(getComputedStyle(element).opacity)));
+  expect(settledOpacities.every((opacity) => opacity === 0)).toBe(true);
   expect(runtimeErrors).toEqual([]);
 });
 

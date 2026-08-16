@@ -22,7 +22,13 @@ import {
   type PrototypeBonus,
   type PrototypeStatistics,
 } from './ui/Prototype';
-import type { ReelCell, ReelGrid, WinningPath } from './renderer/ReelCanvas';
+import {
+  MAX_PRESENTED_WIN_PATHS,
+  WIN_PATH_CYCLE_MS,
+  type ReelCell,
+  type ReelGrid,
+  type WinningPath,
+} from './renderer/ReelCanvas';
 
 const STARTING_BALANCE = 2_000;
 const PRESENTATION_MS = 520;
@@ -216,7 +222,11 @@ export function App() {
       bonusAutoplayTimer.current = undefined;
     }
     if (!bonusAutoplay || phase !== 'bonus' || session.phase !== 'bonus') return;
-    const autoplayGap = lastWin > 0 ? BONUS_AUTOPLAY_WIN_GAP_MS : BONUS_AUTOPLAY_GAP_MS;
+    const visibleLineCount = Math.min(highlightedPaths.length, MAX_PRESENTED_WIN_PATHS);
+    const winSequenceGap = visibleLineCount * WIN_PATH_CYCLE_MS + 200;
+    const autoplayGap = lastWin > 0
+      ? Math.max(BONUS_AUTOPLAY_WIN_GAP_MS, winSequenceGap)
+      : BONUS_AUTOPLAY_GAP_MS;
     bonusAutoplayTimer.current = window.setTimeout(() => {
       bonusAutoplayTimer.current = undefined;
       handleSpin();
@@ -227,7 +237,7 @@ export function App() {
         bonusAutoplayTimer.current = undefined;
       }
     };
-  }, [bonusAutoplay, handleSpin, lastWin, phase, session.phase]);
+  }, [bonusAutoplay, handleSpin, highlightedPaths.length, lastWin, phase, session.phase]);
 
   const resetSession = useCallback((nextSeed = seed) => {
     if (presentationTimer.current !== undefined) window.clearTimeout(presentationTimer.current);

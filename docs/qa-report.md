@@ -10,7 +10,7 @@
 | `npm test` | Pass — 4 files, 30 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
-| Playwright development flows | Pass — 8 tests |
+| Playwright development flows | Pass — 10 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -71,7 +71,7 @@ Live browser review confirmed that the new Pelagos Relay background preserves fo
 contrast and that the redesigned CORE texture loads in the forced feature grid. The
 cabinet, reel cells, typography, dialog, scoreboard, and primary control now use a
 restrained olive, concrete, canvas, amber, and brass palette without cyan glow effects.
-Production symbols use procedural fallbacks if loading fails. The eight Playwright flows
+Production symbols use procedural fallbacks if loading fails. The ten Playwright flows
 cover app stability, committed-result locking and provenance, exact winning-line and
 prominent-total output, the retained development cheat, both Alpha and Bravo continuations,
 bonus wager locking, 390 px overflow, reduced-motion stability, and deterministic equality
@@ -92,9 +92,19 @@ only the functional CORE and WILD marks retain purpose-built condensed nameplate
 Live desktop review caught and resolved two presentation defects before release: the
 first total plaque obscured the final symbols, and the canvas trace could stop at the
 beginning of a new cycle. The confirmed total now has a dedicated bar below the unobscured
-reels, and a crisp responsive trace remains visible in the settled state. Review at a
-390 × 844 viewport confirmed aligned geometry and readable result hierarchy. A fresh
+reels. A follow-up lifecycle fix replaced the persistent strongest-line overlay with a
+one-pass draw, hold, fade, and advance sequence. Live verification observed an active
+line at opacity 1 and the same line cleared to opacity 0 after its 900 ms slot. The ninth
+Playwright flow verifies that animated paths clear after the complete sequence. Review at
+a 390 × 844 viewport confirmed aligned geometry and readable result hierarchy. A fresh
 browser session reported no warning or error logs.
+
+Keyboard and pointer-stability QA verifies that Space starts exactly one base spin, cannot
+queue another transition during presentation, and does not spin while a dialog is active.
+The Spin button advertises `aria-keyshortcuts="Space"`. Moving all dynamic result panels
+below the fixed scoreboard and control deck keeps the button at the same document
+coordinate before and after a win; automated and live checks both measured a zero-pixel
+vertical delta.
 
 Automated comparison confirms that the scoreboard, seed, replay identifier, and
 configuration provenance do not change across the normal presentation boundary. A

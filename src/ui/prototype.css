@@ -147,8 +147,9 @@ button:focus-visible { outline-color: #e0bd68; }
   vector-effect: non-scaling-stroke;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
-  animation: dp-payline-trace 720ms cubic-bezier(.16, .78, .24, 1) both;
+  animation: dp-payline-trace 540ms cubic-bezier(.16, .78, .24, 1) both;
 }
+.dp-payline-overlay__path { opacity: 0; animation: dp-payline-cycle 900ms linear both; }
 .dp-payline-overlay__shadow { stroke: rgb(13 15 12 / .94); stroke-width: 14; }
 .dp-payline-overlay__trace {
   stroke: #f0c86f;
@@ -160,7 +161,7 @@ button:focus-visible { outline-color: #e0bd68; }
   stroke: #21170b;
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
-  animation: dp-payline-contact 480ms ease-out 430ms both;
+  animation: dp-payline-contact 240ms ease-out both;
 }
 .dp-win-total {
   position: relative;
@@ -265,10 +266,22 @@ button:focus-visible { outline-color: #e0bd68; }
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
+@keyframes dp-payline-cycle {
+  0%, 5% { opacity: 0; }
+  12%, 72% { opacity: 1; }
+  100% { opacity: 0; }
+}
 @keyframes dp-payline-contact {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-payline-overlay__path { opacity: 1; }
+  .dp-payline-overlay__path:not(:first-child) { display: none; }
+}
+.dp-prototype--reduced-motion .dp-payline-overlay__path { opacity: 1; }
+.dp-prototype--reduced-motion .dp-payline-overlay__path:not(:first-child) { display: none; }
 
 @media (max-width: 650px) {
   .dp-win-total { padding-inline: 13px; }
