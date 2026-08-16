@@ -37,7 +37,7 @@ Every specialist reports:
 
 ## Planned implementation waves
 
-Current progress: Waves 1 and 2 are complete. Wave 3 has the worker simulator and reports, while the advanced configuration editor and import/export remain. Wave 4 has the implemented Alpha/Bravo bonus with automatic free spins and Pause/Resume, the complete approved eleven-symbol family, Pelagos Relay environment, result-driven reel motion, exact win emphasis, route-specific presentation, and expanded browser accessibility coverage. Production audio, richer optional ambience, and final accessibility/performance review remain.
+Current progress: Waves 1 and 2 are complete. Wave 3 has the worker simulator and reports, while the advanced configuration editor and import/export remain. Wave 4 has the implemented Alpha/Bravo bonus with automatic free spins and Pause/Resume, the complete approved eleven-symbol family, three Pelagos Relay environment states, result-driven reel motion, payout-tier win VFX, route transitions, a completed-feature summary, original ambience and route music, a production mixer, crash diagnostics, and expanded browser accessibility/resource coverage. Visual-regression baselines, broader browser/device verification, and final accessibility/performance review remain.
 
 ### Wave 1 — foundation
 

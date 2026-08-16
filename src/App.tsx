@@ -20,6 +20,7 @@ import {
   Prototype,
   type PresentationPhase,
   type PrototypeBonus,
+  type PrototypeFeatureSummary,
   type PrototypeStatistics,
 } from './ui/Prototype';
 import {
@@ -29,11 +30,15 @@ import {
   type ReelGrid,
   type WinningPath,
 } from './renderer/ReelCanvas';
+import { useGameAudio } from './audio/useGameAudio';
+import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
+import { classifyWin } from './presentation/win-tier';
 
 const STARTING_BALANCE = 2_000;
 const PRESENTATION_MS = 520;
 const BONUS_AUTOPLAY_GAP_MS = 650;
 const BONUS_AUTOPLAY_WIN_GAP_MS = 1_800;
+const MIN_SPIN_ENTRY_GAP_MS = 180;
 
 function createUiSeed(): string {
   const values = new Uint32Array(2);
@@ -130,6 +135,17 @@ function useReducedMotion(): boolean {
 }
 
 export function App() {
+  const {
+    settings: audioSettings,
+    status: audioStatus,
+    updateSettings: updateAudioSettings,
+    playSpin: playSpinAudio,
+    presentResult: presentAudioResult,
+    chooseRoute: playRouteAudio,
+    finishFeature: finishFeatureAudio,
+    clearFeatureAudio,
+    preview: previewAudio,
+  } = useGameAudio();
   const [seed, setSeed] = useState(createUiSeed);
   const [session, setSession] = useState(() => createSession({ seed }));
   const [balance, setBalance] = useState(STARTING_BALANCE);
@@ -143,10 +159,15 @@ export function App() {
   const [simulation, setSimulation] = useState<PrototypeStatistics>();
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [bonusAutoplay, setBonusAutoplay] = useState(true);
+  const [environmentRoute, setEnvironmentRoute] = useState<BonusRoute>();
+  const [featureSummary, setFeatureSummary] = useState<PrototypeFeatureSummary>();
   const presentationTimer = useRef<number | undefined>(undefined);
   const bonusAutoplayTimer = useRef<number | undefined>(undefined);
   const simulationWorker = useRef<Worker | undefined>(undefined);
   const pendingSimulation = useRef<string | undefined>(undefined);
+  const lastAcceptedSpinAt = useRef(Number.NEGATIVE_INFINITY);
+  const featureTotalWin = useRef(0);
+  const featureSpinsPlayed = useRef(0);
   const reducedMotion = useReducedMotion();
 
   const finishPresentation = useCallback((nextPhase: PresentationPhase) => {
@@ -167,11 +188,15 @@ export function App() {
       pendingSimulation.current = undefined;
       setSimulationRunning(false);
       if (message.type === 'complete') setSimulation(simulationView(message.report));
-      else console.error(`Simulation failed: ${message.error.message}`);
+      else {
+        recordDiagnostic('simulation-error', { message: message.error.message.slice(0, 500) });
+        console.error(`Simulation failed: ${message.error.message}`);
+      }
     };
     worker.onerror = (event) => {
       pendingSimulation.current = undefined;
       setSimulationRunning(false);
+      recordDiagnostic('simulation-worker-error', { message: event.message.slice(0, 500) });
       console.error('Simulation worker failed.', event);
     };
     return () => {
@@ -188,33 +213,80 @@ export function App() {
     setHighlightedPaths(winningPaths(result));
     setLastReplayId(replayId(result));
     setPhase('spinning');
+    recordDiagnostic('spin-result', {
+      mode: result.mode,
+      payout: result.totalPayout,
+      wager: result.wager,
+      lineWins: result.lineWins.length,
+      cores: result.scatter.count,
+      nextPhase,
+      rngBefore: result.replay.rngBefore.position,
+      rngAfter: result.replay.rngAfter.position,
+    });
+    presentAudioResult(result, reducedMotion);
     finishPresentation(nextPhase);
-  }, [finishPresentation]);
+  }, [finishPresentation, presentAudioResult, reducedMotion]);
 
   const handleSpin = useCallback(() => {
-    if (phase === 'spinning' || session.phase === 'bonus-choice') return;
+    const now = performance.now();
+    if (phase === 'spinning' || session.phase === 'bonus-choice') {
+      recordDiagnosticRateLimited('spin-blocked', { reason: phase === 'spinning' ? 'presenting' : 'bonus-choice' }, 500);
+      return;
+    }
+    if (now - lastAcceptedSpinAt.current < MIN_SPIN_ENTRY_GAP_MS) {
+      recordDiagnosticRateLimited('spin-blocked', { reason: 'entry-gap' }, 500);
+      return;
+    }
     if (session.phase === 'bonus') {
+      const activeRoute = session.bonusState?.route;
+      lastAcceptedSpinAt.current = now;
+      recordDiagnostic('spin-start', { mode: 'bonus', route: session.bonusState?.route ?? 'unknown' });
+      playSpinAudio(reducedMotion);
       const transition = spinBonus(session);
+      featureTotalWin.current += transition.result.totalPayout;
+      featureSpinsPlayed.current += 1;
       setSession(transition.session);
       setBalance((current) => current + transition.result.totalPayout);
       showResult(transition.result, transition.session.phase === 'bonus' ? 'bonus' : 'result');
+      if (transition.session.phase !== 'bonus' && activeRoute) {
+        setFeatureSummary({ route: activeRoute, totalWin: featureTotalWin.current, spinsPlayed: featureSpinsPlayed.current });
+        finishFeatureAudio();
+        recordDiagnostic('feature-complete', {
+          route: activeRoute,
+          totalWin: featureTotalWin.current,
+          spinsPlayed: featureSpinsPlayed.current,
+        });
+      }
       return;
     }
-    if (balance < session.wager) return;
+    if (balance < session.wager) {
+      recordDiagnosticRateLimited('spin-blocked', { reason: 'insufficient-credits' }, 1_000);
+      return;
+    }
+    lastAcceptedSpinAt.current = now;
+    recordDiagnostic('spin-start', { mode: 'base', balance, wager: session.wager });
+    playSpinAudio(reducedMotion);
     const ordinarySession = session.developerCheat ? { ...session, developerCheat: false } : session;
     const transition = spinBase(ordinarySession);
     setForcedFixture(false);
     setSession(transition.session);
     setBalance((current) => current - ordinarySession.wager + transition.result.totalPayout);
     showResult(transition.result, transition.session.phase === 'bonus-choice' ? 'bonus-choice' : 'result');
-  }, [balance, phase, session, showResult]);
+  }, [balance, finishFeatureAudio, phase, playSpinAudio, reducedMotion, session, showResult]);
 
   const handleChooseBonus = useCallback((route: BonusRoute) => {
     if (session.phase !== 'bonus-choice') return;
+    recordDiagnostic('bonus-route-chosen', { route });
+    playRouteAudio(route);
+    featureTotalWin.current = 0;
+    featureSpinsPlayed.current = 0;
+    setFeatureSummary(undefined);
+    setEnvironmentRoute(route);
     setBonusAutoplay(true);
+    lastAcceptedSpinAt.current = Number.NEGATIVE_INFINITY;
     setSession(chooseBonusRoute(session, route));
     setPhase('bonus');
-  }, [session]);
+  }, [playRouteAudio, session]);
 
   useEffect(() => {
     if (bonusAutoplayTimer.current !== undefined) {
@@ -225,7 +297,7 @@ export function App() {
     const visibleLineCount = Math.min(highlightedPaths.length, MAX_PRESENTED_WIN_PATHS);
     const winSequenceGap = visibleLineCount * WIN_PATH_CYCLE_MS + 200;
     const autoplayGap = lastWin > 0
-      ? Math.max(BONUS_AUTOPLAY_WIN_GAP_MS, winSequenceGap)
+      ? Math.max(BONUS_AUTOPLAY_WIN_GAP_MS, winSequenceGap, classifyWin(lastWin, session.wager).durationMs + 180)
       : BONUS_AUTOPLAY_GAP_MS;
     bonusAutoplayTimer.current = window.setTimeout(() => {
       bonusAutoplayTimer.current = undefined;
@@ -242,7 +314,13 @@ export function App() {
   const resetSession = useCallback((nextSeed = seed) => {
     if (presentationTimer.current !== undefined) window.clearTimeout(presentationTimer.current);
     if (bonusAutoplayTimer.current !== undefined) window.clearTimeout(bonusAutoplayTimer.current);
+    lastAcceptedSpinAt.current = Number.NEGATIVE_INFINITY;
     setBonusAutoplay(true);
+    clearFeatureAudio();
+    featureTotalWin.current = 0;
+    featureSpinsPlayed.current = 0;
+    setEnvironmentRoute(undefined);
+    setFeatureSummary(undefined);
     setSession(createSession({ seed: nextSeed, wager: session.wager }));
     setBalance(STARTING_BALANCE);
     setLastWin(0);
@@ -252,7 +330,8 @@ export function App() {
     setHighlightedPaths([]);
     setForcedFixture(false);
     setPhase('ready');
-  }, [seed, session.wager]);
+    recordDiagnostic('session-reset', { wager: session.wager });
+  }, [clearFeatureAudio, seed, session.wager]);
 
   const handleNewSeed = useCallback(() => {
     const nextSeed = createUiSeed();
@@ -307,12 +386,16 @@ export function App() {
       replayId={displayedReplay}
       configId={`${session.config.id} · ${session.configHash}`}
       bonus={bonus}
+      environmentRoute={environmentRoute}
+      featureSummary={featureSummary}
       bonusAutoplay={bonusAutoplay}
       winningCells={highlightedCells}
       winningPaths={highlightedPaths}
       simulation={simulation}
       simulationRunning={simulationRunning}
       reducedMotion={reducedMotion}
+      audioSettings={audioSettings}
+      audioStatus={audioStatus}
       devCheatsEnabled={import.meta.env.DEV}
       onSpin={handleSpin}
       onChooseBonus={handleChooseBonus}
@@ -322,6 +405,12 @@ export function App() {
       onScaleWager={handleScaleWager}
       onForceBonus={handleForceBonus}
       onResetSession={() => resetSession()}
+      onUpdateAudio={updateAudioSettings}
+      onPreviewAudio={previewAudio}
+      onDismissFeatureSummary={() => {
+        setFeatureSummary(undefined);
+        setEnvironmentRoute(undefined);
+      }}
     />
   );
 }

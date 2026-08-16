@@ -4,7 +4,7 @@
 
 This document defines the visual and sound direction for Defuse Protocol, a free, educational slot-machine simulator using virtual credits. It is the shared brief for implementation, asset creation, and review. It does not authorize real-money gambling features or use of third-party intellectual property.
 
-The playable prototype combines original procedural fallbacks with an approved production visual and motion slice. Generated and reviewed runtime artwork covers the complete eleven-symbol family and the Pelagos Relay environment. Staggered reel settling, exact payline traces, a large confirmed-win total, full-name line feedback, CORE activation, route atmosphere, bonus autoplay, and accessible result feedback are implemented. Production audio remains future work subject to the asset-provenance policy.
+The playable prototype combines original procedural fallbacks with approved production visual, motion, and audio slices. Generated and reviewed runtime artwork covers the complete eleven-symbol family plus base, Relay Alpha, and Relay Bravo Pelagos environments. Staggered reel settling, exact payline traces, payout-tier VFX, large big/major totals, full-name line feedback, CORE activation, route atmosphere, bonus autoplay, a completed-feature summary, accessible result feedback, and grounded result-driven audio/music are implemented.
 
 Defuse Protocol must feel like an original, realistic, gritty tactical operation at an invented industrial site. Familiarity comes from the broad visual grammar of classic competitive tactical games: strong silhouettes, practical contemporary equipment, sun-worn masonry, restrained field-console UI, and fast amber-versus-neutral state reading. It must never imitate Counter-Strike or any particular game, map, character, composition, interface, military organization, or weapon manufacturer.
 
@@ -104,22 +104,25 @@ Motion should read as a heavy, reliable field instrument.
 
 - Reels use weighted deceleration, subtle mechanical settle, and a result lock that occurs only after the engine has produced the outcome. This is implemented with a 244 ms base and 47 ms per-reel stagger.
 - Ambient effects: sparse dust motes, heat haze, a subtle canvas edge movement, and occasional status-light sweep.
-- Implemented win effects: layered amber route traces, temporary non-winner dimming, restrained cabinet/background response, a large confirmed total, and a full-name line ledger. Ordinary reel art has no abbreviation overlay; only the functional `CORE` and `WILD` marks retain condensed nameplates. Grounded particles and vapor remain optional future polish.
+- Implemented win effects: layered amber route traces, temporary non-winner dimming, tier-scaled cabinet/background response, deterministic light sweeps and particles, counted big/major totals, and a full-name line ledger. Ordinary reel art has no abbreviation overlay; only the functional `CORE` and `WILD` marks retain condensed nameplates.
 - Implemented feature effects: CORE activation rings, Alpha containment rails, and Bravo recovery rails. Meter needles, relay pips, and brief signal distortion remain optional future polish. Avoid holograms, explosions, gunfire, shell casings, shock imagery, or combat simulation.
 - Respect `prefers-reduced-motion`: remove camera shake, reduce particle count, halt ambient motion, and replace flashes with static outlines.
 - Do not use uncontrolled strobing. Any repeated flash must be below 3 Hz and never be the only communication of state.
 
 ### Audio
 
-The prototype does not yet include production audio. The following remains an asset-production brief for future work.
+The production audio layer implements the following direction with twenty original, deterministically synthesized Ogg assets. It uses no third-party recordings, sample libraries, voice lines, copied game sounds, or synthesized noise layers in gameplay effects.
 
 Audio evokes machinery, weather, relays, and secure instruments—not a copyrighted tactical shooter.
 
-- Ambient bed: wind through metalwork, quiet pumps, distant buoy bell, and low electrical hum.
+- Ambient bed: wind through metalwork, quiet pumps, and low electrical hum.
 - Reels: mechanical rollers, contact switches, and small magnetic latches.
 - Wins: tuned metallic chimes, soft synthesized pulses, and restrained pneumatic release.
 - Feature: rising relay tone and containment lock, not sirens resembling game assets, weapon reports, voice lines, radio chatter, or recognizable round-announcement rhythms.
-- Provide independent master, ambience, effects, and music controls; subtitles or text equivalents for meaningful audio cues; and a mute state that is persisted locally.
+- Route music: Alpha uses a restrained precision pulse and tuned relay contacts; Bravo uses heavier low mechanical tonal percussion. Both are seamless, sparse, and free of orchestral casino-fanfare language.
+- Provide independent master, ambience, music, and effects controls; text equivalents for meaningful audio cues; and a mute state that is persisted locally.
+
+The browser mixer, cue mapping, synthesis method, and accessibility behavior are documented in [audio-design.md](audio-design.md). All gameplay cues are derived from an already committed result and cannot affect randomness or payout.
 
 ## Accessibility
 

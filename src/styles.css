@@ -11,15 +11,50 @@
 html,
 body {
   min-width: 320px;
-  min-height: 100%;
+  min-height: 100vh;
   margin: 0;
-  background:
-    linear-gradient(rgb(28 27 21 / .48), rgb(18 21 18 / .82)),
-    url('./assets/scenes/scene-pelagos-relay-main-2560x1440.webp') center top / cover fixed no-repeat,
-    #181b18;
+  background: #181b18;
 }
 
-#root { min-height: 100vh; }
+body::before,
+body::after {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+body::before {
+  background-image:
+    linear-gradient(rgb(28 27 21 / .48), rgb(18 21 18 / .82)),
+    url('./assets/scenes/scene-pelagos-relay-main-2560x1440.webp');
+}
+
+body::after { opacity: 0; transition: opacity 900ms ease; }
+html[data-relay-scene='alpha'] body::after {
+  opacity: 1;
+  background-image:
+    linear-gradient(rgb(19 28 29 / .28), rgb(12 18 18 / .7)),
+    url('./assets/scenes/scene-pelagos-relay-alpha-2560x1440.webp');
+}
+html[data-relay-scene='bravo'] body::after {
+  opacity: 1;
+  background-image:
+    linear-gradient(rgb(27 20 18 / .22), rgb(14 15 14 / .68)),
+    url('./assets/scenes/scene-pelagos-relay-bravo-2560x1440.webp');
+}
+
+.dp-crash-recovery { min-height: 100vh; display: grid; place-items: center; padding: 24px; color: #ded7c6; background: #1c211d; }
+.dp-crash-recovery section { width: min(760px, 100%); padding: 28px; border: 1px solid #777364; background: #2a2f2a; }
+.dp-crash-recovery section > p:first-child { color: #d19a45; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.dp-crash-recovery pre { max-height: 42vh; overflow: auto; padding: 12px; color: #d6e0c4; border: 1px solid #69685d; background: #151915; font-size: .72rem; white-space: pre-wrap; }
+.dp-crash-recovery button { padding: 10px 14px; color: #161914; border: 1px solid #d8b25c; background: #d19a45; font-weight: 750; }
+
+#root { position: relative; z-index: 1; min-height: 100vh; }
 
 button,
 input,
@@ -46,5 +81,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 650px) {
-  body { background-attachment: scroll; }
+  body::before,
+  body::after { position: absolute; }
 }

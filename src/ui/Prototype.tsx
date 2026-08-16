@@ -7,6 +7,10 @@ import {
   type ReelGrid,
   type WinningPath,
 } from '../renderer/ReelCanvas';
+import type { AudioPreviewCue, AudioSettings, AudioStatus } from '../audio/types';
+import { classifyWin } from '../presentation/win-tier';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { WinCelebration } from './WinCelebration';
 import './prototype.css';
 
 const DevCheats = import.meta.env.DEV
@@ -40,6 +44,12 @@ export interface PrototypeBonus {
   bravoProtected?: boolean;
 }
 
+export interface PrototypeFeatureSummary {
+  readonly route: BonusRoute;
+  readonly totalWin: number;
+  readonly spinsPlayed: number;
+}
+
 export interface PrototypeProps {
   /** Authoritative virtual-credit state supplied by the application service. */
   balance: number;
@@ -56,12 +66,17 @@ export interface PrototypeProps {
   replayId?: string;
   configId?: string;
   bonus?: PrototypeBonus;
+  /** Keeps the selected environment visible through the final feature result. */
+  environmentRoute?: BonusRoute;
+  featureSummary?: PrototypeFeatureSummary;
   /** Whether the application should request the next free spin automatically. */
   bonusAutoplay?: boolean;
   simulation?: PrototypeStatistics;
   /** True while the parent-owned worker is processing a simulation request. */
   simulationRunning?: boolean;
   reducedMotion?: boolean;
+  audioSettings: AudioSettings;
+  audioStatus: AudioStatus;
   /** Development builds only; shows controls that request a forced feature outcome. */
   devCheatsEnabled?: boolean;
   onSpin: () => void;
@@ -72,6 +87,9 @@ export interface PrototypeProps {
   onScaleWager: (direction: 'down' | 'up') => void;
   onForceBonus: (cores: 3 | 4 | 5) => void;
   onResetSession: () => void;
+  onUpdateAudio: (patch: Partial<Omit<AudioSettings, 'version'>>) => void;
+  onPreviewAudio: (cue: AudioPreviewCue) => void;
+  onDismissFeatureSummary: () => void;
 }
 
 const initialGrid: ReelGrid = [
@@ -118,12 +136,19 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'am
 export function Prototype(props: PrototypeProps) {
   const [labOpen, setLabOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [cheatOpen, setCheatOpen] = useState(false);
   const activeGrid = props.grid.length ? props.grid : initialGrid;
   const winningPaths = props.winningPaths ?? [];
+  const sceneRoute = props.environmentRoute ?? props.bonus?.route;
   const inFeature = props.phase === 'bonus'
     || (props.phase === 'spinning' && Boolean(props.bonus?.route));
   const hasPresentedWin = props.lastWin > 0 && (props.phase === 'result' || props.phase === 'bonus');
+  const winPresentation = useMemo(
+    () => classifyWin(hasPresentedWin ? props.lastWin : 0, props.totalWager),
+    [hasPresentedWin, props.lastWin, props.totalWager],
+  );
   const strongestPath = winningPaths.reduce<WinningPath | undefined>((best, path) => !best || path.payout > best.payout ? path : best, undefined);
   const spinDisabled = props.phase === 'spinning' || props.phase === 'bonus-choice';
   const wagerControlsDisabled = spinDisabled || inFeature;
@@ -189,14 +214,17 @@ export function Prototype(props: PrototypeProps) {
   const cabinetClassName = [
     'dp-cabinet',
     inFeature && 'dp-cabinet--feature',
-    inFeature && props.bonus?.route && `dp-cabinet--${props.bonus.route}`,
+    sceneRoute && `dp-cabinet--${sceneRoute}`,
     hasPresentedWin && 'dp-cabinet--win',
+    hasPresentedWin && `dp-cabinet--win-${winPresentation.tier}`,
   ].filter(Boolean).join(' ');
 
   const prototypeClassName = [
     'dp-prototype',
     props.reducedMotion && 'dp-prototype--reduced-motion',
     hasPresentedWin && 'dp-prototype--win',
+    sceneRoute && `dp-prototype--${sceneRoute}`,
+    hasPresentedWin && `dp-prototype--win-${winPresentation.tier}`,
   ].filter(Boolean).join(' ');
 
   useEffect(() => {
@@ -204,9 +232,18 @@ export function Prototype(props: PrototypeProps) {
   }, [props.devCheatsEnabled]);
 
   useEffect(() => {
+    if (sceneRoute) document.documentElement.dataset.relayScene = sceneRoute;
+    else delete document.documentElement.dataset.relayScene;
+  }, [sceneRoute]);
+
+  useEffect(() => () => {
+    delete document.documentElement.dataset.relayScene;
+  }, []);
+
+  useEffect(() => {
     const handleSpaceSpin = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (spinDisabled || inFeature || helpOpen || labOpen || cheatOpen) return;
+      if (spinDisabled || inFeature || props.featureSummary || helpOpen || labOpen || audioOpen || diagnosticsOpen || cheatOpen) return;
       const target = event.target;
       if (target instanceof Element && target.closest('button, a, input, select, textarea, [contenteditable="true"], [role="dialog"]')) return;
       event.preventDefault();
@@ -214,14 +251,17 @@ export function Prototype(props: PrototypeProps) {
     };
     window.addEventListener('keydown', handleSpaceSpin);
     return () => window.removeEventListener('keydown', handleSpaceSpin);
-  }, [cheatOpen, helpOpen, inFeature, labOpen, props.onSpin, spinDisabled]);
+  }, [audioOpen, cheatOpen, diagnosticsOpen, helpOpen, inFeature, labOpen, props.featureSummary, props.onSpin, spinDisabled]);
 
   return (
     <main className={prototypeClassName}>
       <span className="dp-win-ambient" aria-hidden="true" />
+      <span className={`dp-route-atmosphere ${sceneRoute ? `dp-route-atmosphere--${sceneRoute}` : ''}`} aria-hidden="true"><i /><i /><i /></span>
       <header className="dp-topbar">
         <div><p className="dp-kicker">Pelagos Relay · containment console</p><h1>Defuse Protocol</h1></div>
         <div className="dp-topbar__actions">
+          <button className="dp-quiet-button" type="button" onClick={() => setAudioOpen(true)}>{props.audioSettings.muted ? 'Audio off' : 'Audio'}</button>
+          <button className="dp-quiet-button" type="button" onClick={() => setDiagnosticsOpen(true)}>Diagnostics</button>
           <button className="dp-quiet-button" type="button" onClick={() => setHelpOpen(true)}>Paytable & help</button>
           <button className="dp-quiet-button" type="button" onClick={() => setLabOpen(true)}>Lab</button>
         </div>
@@ -232,8 +272,9 @@ export function Prototype(props: PrototypeProps) {
       <section className={cabinetClassName} aria-label="Defuse Protocol slot simulator" aria-busy={props.phase === 'spinning'} aria-describedby="dp-result-feedback">
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
         <div className="dp-reel-frame">
-          <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={props.bonus?.route} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
+          <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={sceneRoute} winTier={winPresentation.tier} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
           {hasPresentedWin && winningPaths.length > 0 && <PaylineOverlay paths={winningPaths} reducedMotion={props.reducedMotion} />}
+          {hasPresentedWin && <WinCelebration payout={props.lastWin} presentation={winPresentation} replayId={props.replayId} reducedMotion={props.reducedMotion} />}
         </div>
         <dl className="dp-scoreboard">
           <Stat label="Balance" value={`${formatCredits(props.balance)} VC`} />
@@ -259,8 +300,8 @@ export function Prototype(props: PrototypeProps) {
           <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed}>New seed</button></div>
         </div>
         {hasPresentedWin && (
-          <div className="dp-win-total" aria-hidden="true">
-            <span>Confirmed return</span>
+          <div className={`dp-win-total dp-win-total--${winPresentation.tier}`} aria-hidden="true">
+            <span>{winPresentation.headline}</span>
             <strong>+{formatCredits(props.lastWin)}</strong>
             <small>VC</small>
           </div>
@@ -290,8 +331,49 @@ export function Prototype(props: PrototypeProps) {
       {props.phase === 'bonus-choice' && <BonusChoice onChoose={props.onChooseBonus} />}
       {labOpen && <LabPanel statistics={props.simulation} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
+      {audioOpen && <AudioPanel settings={props.audioSettings} status={props.audioStatus} onUpdate={props.onUpdateAudio} onPreview={props.onPreviewAudio} onClose={() => setAudioOpen(false)} />}
+      {diagnosticsOpen && <DiagnosticsPanel onClose={() => setDiagnosticsOpen(false)} />}
+      {props.featureSummary && props.phase === 'result' && <FeatureSummary summary={props.featureSummary} onClose={props.onDismissFeatureSummary} />}
     </main>
   );
+}
+
+function FeatureSummary({ summary, onClose }: { readonly summary: PrototypeFeatureSummary; readonly onClose: () => void }) {
+  const routeName = summary.route === 'alpha' ? 'Relay Alpha' : 'Relay Bravo';
+  return (
+    <div className={`dp-overlay dp-feature-summary dp-feature-summary--${summary.route}`} role="dialog" aria-modal="true" aria-labelledby="feature-summary-title">
+      <section className="dp-dialog">
+        <p className="dp-kicker">Operation complete</p>
+        <h2 id="feature-summary-title">{routeName} secured</h2>
+        <p>The complete deterministic feature result has been applied to the virtual-credit balance.</p>
+        <div className="dp-feature-summary__total"><span>Total feature return</span><strong>+{formatCredits(summary.totalWin)} VC</strong></div>
+        <dl><div><dt>Route</dt><dd>{routeName}</dd></div><div><dt>Spins completed</dt><dd>{summary.spinsPlayed}</dd></div></dl>
+        <button type="button" autoFocus onClick={onClose}>Return to base operation</button>
+      </section>
+    </div>
+  );
+}
+
+function AudioPanel({ settings, status, onUpdate, onPreview, onClose }: {
+  settings: AudioSettings;
+  status: AudioStatus;
+  onUpdate: PrototypeProps['onUpdateAudio'];
+  onPreview: PrototypeProps['onPreviewAudio'];
+  onClose: () => void;
+}) {
+  const statusCopy: Readonly<Record<AudioStatus, string>> = {
+    locked: 'Ready after your first spin or sound preview',
+    loading: 'Loading original sound assets…',
+    ready: 'Audio system active',
+    unavailable: 'Audio is unavailable in this browser',
+  };
+  const slider = (label: string, key: 'masterVolume' | 'ambienceVolume' | 'effectsVolume' | 'musicVolume') => (
+    <label className="dp-audio-slider">
+      <span>{label}<output>{Math.round(settings[key] * 100)}%</output></span>
+      <input type="range" min="0" max="1" step="0.01" value={settings[key]} onChange={(event) => onUpdate({ [key]: Number(event.currentTarget.value) })} />
+    </label>
+  );
+  return <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="audio-title"><section className="dp-dialog dp-audio"><button className="dp-close" type="button" aria-label="Close audio settings" onClick={onClose}>×</button><p className="dp-kicker">Presentation audio</p><h2 id="audio-title">Audio console</h2><p>Grounded industrial ambience, feature music, and feedback created specifically for Defuse Protocol. Audio never selects or changes a result.</p><label className="dp-audio-mute"><input type="checkbox" checked={settings.muted} onChange={(event) => onUpdate({ muted: event.currentTarget.checked })} /><span>Mute all audio</span></label><div className="dp-audio-controls">{slider('Master', 'masterVolume')}{slider('Relay ambience', 'ambienceVolume')}{slider('Feature music', 'musicVolume')}{slider('Game effects', 'effectsVolume')}</div><div className="dp-audio-preview" aria-label="Sound previews"><button type="button" onClick={() => onPreview('spin-drive')}>Spin mechanism</button><button type="button" onClick={() => onPreview('payline-trace')}>Payline</button><button type="button" onClick={() => onPreview('win-medium')}>Win signal</button><button type="button" onClick={() => onPreview('core-activation')}>Signal Core</button></div><p className={`dp-audio-status dp-audio-status--${status}`} role="status">{statusCopy[status]}</p></section></div>;
 }
 
 function WinLedger({ paths }: { paths: readonly WinningPath[] }) {

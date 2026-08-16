@@ -15,6 +15,8 @@ The working prototype includes:
 - Relay Alpha and Relay Bravo feature routes, automatic free spins with Pause/Resume, retriggers, and a 30-spin award cap;
 - a React application shell and PixiJS reel presentation;
 - an original Pelagos Relay environment plus production artwork for the complete eleven-symbol reel family, with procedural fallbacks for asset-loading failures;
+- an original deterministic audio library with grounded relay ambience, Alpha/Bravo feature music, mechanical reel feedback, five result tiers, feature cues, and persistent mixer controls;
+- bounded local diagnostics, rapid-input protection, explicit audio cleanup, and a React recovery screen for investigating long-play failures;
 - high-volume, route-specific simulation in a Web Worker;
 - theoretical base-game and bonus-frequency analysis plus clearly labeled observed statistics;
 - a development-only QA menu for forcing 3, 4, or 5 CORE bonus offers; and
@@ -58,6 +60,14 @@ npm test
 npm run build
 ```
 
+Audio sources can be reproduced with FFmpeg installed:
+
+```bash
+npm run generate:audio
+```
+
+The generator is idempotent: unchanged assets are not rewritten, preventing unnecessary development hot reloads.
+
 ## Technology
 
 - TypeScript for the independent mathematical engine and application code
@@ -69,11 +79,15 @@ npm run build
 
 See the [documentation index](docs/README.md), [architecture](docs/architecture.md), and [prototype QA report](docs/qa-report.md) for implementation details and current verification status.
 
+If the browser tab crashes, reload the simulator and open **Diagnostics** before clearing the log. The latest 240 technical events stay only in local browser storage and can be copied into a bug report. See [runtime diagnostics](docs/diagnostics.md) for scope and limitations.
+
 ## Visual and audio status
 
-The production visual and motion slice is implemented. The game uses original generated runtime artwork for all eleven reel symbols and the Pelagos Relay environment. It also presents committed results with staggered reel settling, exact animated payline traces, non-winning-symbol dimming, a large confirmed virtual-credit total, full symbol names in an accessible win ledger, CORE activation, distinct Alpha/Bravo atmosphere, automatic feature spins with Pause/Resume, and a stable reduced-motion path. Ordinary reel art remains free of weak abbreviation overlays; only the functional `CORE` and `WILD` marks are retained. Production audio remains future work.
+The production visual, motion, and audio slices are implemented. The game uses original generated runtime artwork for all eleven reel symbols plus base, Relay Alpha, and Relay Bravo Pelagos environments. It presents committed results with staggered reel settling, exact animated payline traces, non-winning-symbol dimming, payout-multiple VFX tiers, big/major win counters, full symbol names in an accessible win ledger, CORE activation, automatic feature spins with Pause/Resume, a completed-feature summary, and a stable reduced-motion path. Ordinary reel art remains free of weak abbreviation overlays; only the functional `CORE` and `WILD` marks are retained.
 
-Every runtime image has a public brief, sanitized prompt record, technical-preparation notes, and an approved provenance entry under [`docs/assets/`](docs/assets/). Future assets must follow the same [art direction](docs/art-direction.md), provenance rules, and public-repository license policy.
+Twenty original sounds are produced by deterministic 44.1 kHz PCM synthesis and exported as Ogg Vorbis without third-party samples: Pelagos Relay ambience, seamless Alpha/Bravo feature-music loops, a noise-free reel mechanism and latches, payline feedback, five win tiers, Signal Core activation, route confirmations, retrigger, and feature-complete cues. Dry results intentionally add no separate end cue. The Web Audio mixer has persistent master, ambience, music, effects, and mute controls. Audio only presents an already committed result and can fail or remain muted without affecting play. See the [audio design](docs/audio-design.md) for source, cue, and accessibility details.
+
+Every runtime image and sound has a public brief or generation record, technical-preparation notes, and an approved provenance entry under [`docs/assets/`](docs/assets/). Future assets must follow the same [art direction](docs/art-direction.md), provenance rules, and public-repository license policy.
 
 ## Originality and affiliation
 

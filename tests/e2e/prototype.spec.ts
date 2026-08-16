@@ -12,21 +12,21 @@ function collectRuntimeErrors(page: Page): string[] {
   return errors;
 }
 
-async function openPrototype(page: Page) {
-  await page.addInitScript(() => {
+async function openPrototype(page: Page, seedWords: readonly [number, number] = [1, 2]) {
+  await page.addInitScript((words) => {
     const originalGetRandomValues = crypto.getRandomValues.bind(crypto);
     Object.defineProperty(crypto, 'getRandomValues', {
       configurable: true,
       value(array: ArrayBufferView) {
         if (array instanceof Uint32Array && array.length === 2) {
-          array[0] = 1;
-          array[1] = 2;
+          array[0] = words[0];
+          array[1] = words[1];
           return array;
         }
         return originalGetRandomValues(array);
       },
     });
-  });
+  }, seedWords);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Defuse Protocol' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Defuse Protocol slot simulator' })).toBeVisible();
@@ -63,6 +63,91 @@ test('development app remains visible without runtime errors', async ({ page }) 
   await expect(page.locator('canvas')).toBeVisible();
   await page.waitForTimeout(100);
 
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('persistent diagnostics record committed spins and survive the local UI', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  await page.getByRole('button', { name: 'Spin', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Diagnostics' });
+  await expect(dialog).toBeVisible();
+  const log = dialog.getByLabel('Diagnostic log');
+  await expect(log).toHaveValue(/app-start/);
+  await expect(log).toHaveValue(/renderer-ready/);
+  await expect(log).toHaveValue(/spin-start/);
+  await expect(log).toHaveValue(/spin-result/);
+  await expect(dialog.getByText(/events retained · maximum 240/)).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('a synchronous rapid-click burst enters only one spin transition', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  await spin.evaluate((element) => {
+    for (let index = 0; index < 100; index += 1) (element as HTMLButtonElement).click();
+  });
+  await expect(spin).toBeEnabled();
+  await expect(page.getByText('Replay BASE-0-5')).toBeVisible();
+  await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
+  const log = page.getByLabel('Diagnostic log');
+  await expect(log).toHaveValue(/spin-blocked/);
+  await expect(log).toHaveValue(/entry-gap/);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('repeated fast spins keep one renderer alive and retain bounded diagnostics', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  for (let index = 0; index < 30; index += 1) {
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    if (index < 29) await page.waitForTimeout(190);
+  }
+
+  await expect(page.locator('canvas')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
+  const rawLog = await page.getByLabel('Diagnostic log').inputValue();
+  const diagnosticLog = JSON.parse(rawLog) as { events: Array<{ type: string }> };
+  expect(diagnosticLog.events.filter((event) => event.type === 'spin-result')).toHaveLength(30);
+  expect(diagnosticLog.events.length).toBeLessThanOrEqual(240);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('audio console previews original cues and persists versioned preferences', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  await page.getByRole('button', { name: 'Audio', exact: true }).click();
+  const audioDialog = page.getByRole('dialog', { name: 'Audio console' });
+  await expect(audioDialog).toBeVisible();
+  await expect(audioDialog.getByText('Audio never selects or changes a result.')).toBeVisible();
+  const master = audioDialog.locator('.dp-audio-slider input').first();
+  await master.fill('0.55');
+  await expect(audioDialog.locator('.dp-audio-slider output').first()).toHaveText('55%');
+  const featureMusic = audioDialog.locator('.dp-audio-slider').filter({ hasText: 'Feature music' });
+  await featureMusic.locator('input').fill('0.44');
+  await expect(featureMusic.locator('output')).toHaveText('44%');
+  await audioDialog.getByRole('button', { name: 'Spin mechanism' }).click();
+  await expect(audioDialog.locator('.dp-audio-status')).toHaveText('Audio system active');
+  await audioDialog.getByLabel('Mute all audio').check();
+  await audioDialog.getByRole('button', { name: 'Close audio settings' }).click();
+  await expect(page.getByRole('button', { name: 'Audio off' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Audio off' })).toBeVisible();
+  await page.getByRole('button', { name: 'Audio off' }).click();
+  await expect(page.getByLabel('Mute all audio')).toBeChecked();
+  await expect(page.locator('.dp-audio-slider output').first()).toHaveText('55%');
+  await expect(page.locator('.dp-audio-slider').filter({ hasText: 'Feature music' }).locator('output')).toHaveText('44%');
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -151,6 +236,24 @@ test('winning result exposes a payline ledger and prominent committed total', as
   expect(runtimeErrors).toEqual([]);
 });
 
+for (const winCase of [
+  { tier: 'big', seed: 0xf3, payout: '244', headline: 'Big win' },
+  { tier: 'major', seed: 0xff, payout: '639', headline: 'Major recovery' },
+] as const) {
+  test(`${winCase.tier} committed return receives its dedicated celebration`, async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
+    await openPrototype(page, [1, winCase.seed]);
+    await page.getByRole('button', { name: 'Spin', exact: true }).click();
+
+    const celebration = page.locator(`.dp-win-celebration--${winCase.tier}`);
+    await expect(celebration).toBeVisible();
+    await expect(celebration).toContainText(winCase.headline);
+    await expect(celebration).toContainText(`+${winCase.payout}`);
+    await expect(page.locator('.dp-win-total strong')).toHaveText(`+${winCase.payout}`);
+    expect(runtimeErrors).toEqual([]);
+  });
+}
+
 test('animated paylines advance once and clear after the win sequence', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openPrototype(page);
@@ -193,6 +296,7 @@ for (const route of ['Alpha', 'Bravo'] as const) {
     await expect(increaseWager).toBeDisabled();
     await expect(page.locator('#dp-result-feedback')).toContainText('Feature route required');
     await choice.getByRole('button', { name: new RegExp(`Relay ${route}`) }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-relay-scene', route.toLowerCase());
 
     const featureStatus = page.getByRole('region', { name: `Relay ${route} status` });
     const pauseAutospins = page.getByRole('button', { name: 'Pause auto spins' });
@@ -229,6 +333,25 @@ for (const route of ['Alpha', 'Bravo'] as const) {
     expect(runtimeErrors).toEqual([]);
   });
 }
+
+test('completed Bravo feature reports its total and returns to the base environment', async ({ page }) => {
+  test.slow();
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+  const choice = await forceCoreChoice(page);
+  await choice.getByRole('button', { name: /Relay Bravo/ }).click();
+
+  const summary = page.getByRole('dialog', { name: 'Relay Bravo secured' });
+  await expect(summary).toBeVisible({ timeout: 35_000 });
+  await expect(summary).toContainText('Total feature return');
+  await expect(summary).toContainText('Spins completed');
+  await expect(page.locator('html')).toHaveAttribute('data-relay-scene', 'bravo');
+  await summary.getByRole('button', { name: 'Return to base operation' }).click();
+  await expect(summary).toBeHidden();
+  await expect(page.locator('html')).not.toHaveAttribute('data-relay-scene', /.+/);
+  expect(runtimeErrors).toEqual([]);
+});
 
 test('390px viewport has no document-level horizontal overflow', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);

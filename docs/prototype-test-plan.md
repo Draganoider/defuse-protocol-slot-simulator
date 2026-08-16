@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This plan defines the acceptance checks for the first playable Defuse Protocol prototype. It covers deterministic mathematics, browser behavior, the Relay Selection bonus, simulation reporting, and the development-only cheat boundary.
+This plan defines the acceptance checks for the playable Defuse Protocol prototype. It covers deterministic mathematics, browser behavior, Relay Selection and completion, payout-tier VFX, route environments/music, presentation audio, simulation reporting, and the development-only cheat boundary.
 
 ## Quality gates
 
@@ -17,6 +17,7 @@ The prototype is acceptable when all of the following pass:
 - Ordinary and forced bonus-path checks for both routes
 - Simulation provenance and metric-label checks
 - No console errors or unhandled promise rejections during tested flows
+- Bounded diagnostic persistence and synchronous rapid-click protection
 
 ## Base-game scenarios
 
@@ -79,6 +80,38 @@ The prototype is acceptable when all of the following pass:
 - Reduced-motion preference removes or shortens nonessential reel and ambient movement.
 - Important states are communicated by text or shape as well as color.
 - The virtual-credit/no-monetary-value notice remains discoverable at both tested sizes.
+
+## Diagnostics and long-play safety
+
+- A synchronous burst of click events enters only one spin transition before React commits state.
+- Thirty fast accepted reduced-motion spins retain one renderer canvas, one result per
+  accepted input, no page/console errors, and no more than 240 diagnostic events.
+- The full presenting-phase lock continues to reject ordinary queued spins.
+- Diagnostic events survive reload, remain capped at 240, and contain no personal or financial data.
+- The Diagnostics dialog exposes copyable JSON and clear-local-log controls.
+- Audio one-shots disconnect after completion and refuse excess concurrency above the documented cap.
+- Renderer initialization, context loss/restoration, and bounded heartbeats are observable without changing game results.
+
+## Presentation audio
+
+- Audio remains locked until an eligible user interaction and never blocks a spin when unavailable.
+- Spin, reel-stop, result, payline, win-tier, CORE, and route cues are scheduled from application/result state rather than engine randomness.
+- Bonus autoplay uses the same result-driven audio path as a manual feature spin.
+- Alpha and Bravo start distinct local music loops only after route choice; final completion or reset stops the loop.
+- Master, ambience, music, effects, and mute controls are keyboard accessible and persist in a validated versioned local preference.
+- Version-one audio settings migrate safely, and big, major, retrigger, and feature-complete cues map only from immutable transitions.
+- Every meaningful sound has an equivalent visible and semantic result state.
+- Reduced-motion timing is shortened without changing the selected result, payout, or cue meaning.
+- Every runtime sound has an approved manifest entry and a reproducible source record.
+
+## Win tiers and route environments
+
+- Payout tiers use committed return divided by wager: strong at 5×, big at 10×, and major at 25×.
+- Deterministic first-spin fixtures verify big and major celebration classes, headlines, and exact totals.
+- Alpha and Bravo route selection applies the matching approved environment without changing the grid or replay metadata.
+- The selected environment remains through the final result and feature summary, then returns to base on confirmation.
+- Reduced motion removes shake, repeated rings, route sweeps, and particle travel while retaining static tier and route labels.
+- A complete Bravo feature reports accumulated virtual credits and spins played in a keyboard-operable dialog.
 
 ## Public-repository checks
 

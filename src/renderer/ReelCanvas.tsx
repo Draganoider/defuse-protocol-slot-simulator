@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import { recordDiagnostic, recordDiagnosticRateLimited } from '../diagnostics/diagnostic-log';
+import type { WinTier } from '../presentation/win-tier';
 import recoveryCaseUrl from '../assets/symbols/symbol-recovery-case-base-01.webp';
 import containmentSpecialistUrl from '../assets/symbols/symbol-containment-specialist-wild-01.webp';
 import signalCoreUrl from '../assets/symbols/symbol-signal-core-base-01.webp';
@@ -42,6 +44,8 @@ export interface ReelCanvasProps {
   winningPaths?: readonly WinningPath[];
   /** Optional route metadata; omitted during base play and before a choice. */
   bonusRoute?: 'alpha' | 'bravo';
+  /** Presentation tier derived outside the renderer from the committed payout. */
+  winTier?: WinTier;
   reducedMotion?: boolean;
   className?: string;
 }
@@ -431,19 +435,53 @@ function drawCoreCue(
   }));
 }
 
+function drawWinTierVfx(
+  stage: Container,
+  tier: WinTier,
+  phase: PresentationPhase,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  reducedMotion: boolean,
+  elapsed: number,
+) {
+  if ((phase !== 'result' && phase !== 'bonus') || tier === 'none' || tier === 'standard') return;
+  const intensity = tier === 'major' ? 1 : tier === 'big' ? 0.72 : 0.42;
+  const envelope = reducedMotion ? 0.46 : Math.max(0, 1 - elapsed / (tier === 'major' ? 2_600 : tier === 'big' ? 2_150 : 1_350));
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const sweep = reducedMotion ? 0.5 : (elapsed % 1_100) / 1_100;
+  stage.addChild(new Graphics()
+    .rect(x, y + height * sweep, width, Math.max(2, height * 0.012))
+    .fill({ color: PALETTE.gold, alpha: 0.08 + envelope * intensity * 0.18 })
+    .circle(centerX, centerY, Math.min(width, height) * (0.32 + sweep * 0.24))
+    .stroke({ color: PALETTE.gold, width: tier === 'major' ? 3 : 2, alpha: envelope * intensity * 0.28 }));
+
+  const sparkCount = tier === 'major' ? 14 : tier === 'big' ? 9 : 5;
+  for (let index = 0; index < sparkCount; index += 1) {
+    const cycle = reducedMotion ? 0.6 : ((elapsed * (0.00022 + index * 0.000013) + index * 0.173) % 1);
+    const sparkX = x + width * ((index * 0.271 + cycle * 0.16) % 1);
+    const sparkY = y + height * (0.92 - cycle * 0.78);
+    stage.addChild(new Graphics()
+      .circle(sparkX, sparkY, 1.2 + (index % 3) * 0.55)
+      .fill({ color: index % 2 === 0 ? PALETTE.gold : PALETTE.amber, alpha: envelope * intensity * 0.62 }));
+  }
+}
+
 /**
  * An original PixiJS v8 reel renderer. The grid is always the committed engine
  * result; deterministic animation only changes how that grid is presented.
  */
-export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], bonusRoute, reducedMotion = false, className }: ReelCanvasProps) {
+export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], bonusRoute, winTier = 'none', reducedMotion = false, className }: ReelCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const renderRef = useRef<(() => void) | null>(null);
-  const latestRef = useRef({ grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion });
-  latestRef.current = { grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion };
+  const latestRef = useRef({ grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion });
+  latestRef.current = { grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion };
 
   useEffect(() => {
     renderRef.current?.();
-  }, [grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion]);
+  }, [grid, phase, winningCells, winningPaths, bonusRoute, winTier, reducedMotion]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -453,6 +491,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
     let initialized = false;
     let destroyed = false;
     let resizeObserver: ResizeObserver | undefined;
+    let removeContextListeners: () => void = () => {};
     let mediaReduced = false;
     let removeMotionListener: () => void = () => {};
     const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -461,7 +500,9 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
       if (!initialized || destroyed) return;
       destroyed = true;
       removeMotionListener();
+      removeContextListeners();
       app.destroy(true, { children: true });
+      recordDiagnostic('renderer-disposed');
     };
 
     const start = async () => {
@@ -477,6 +518,30 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         return;
       }
       host.replaceChildren(app.canvas);
+      const canvas = app.canvas as HTMLCanvasElement;
+      const handleContextLost = (event: Event) => {
+        event.preventDefault();
+        recordDiagnostic('renderer-context-lost', { phase: latestRef.current.phase });
+      };
+      const handleContextRestored = () => {
+        recordDiagnostic('renderer-context-restored', { phase: latestRef.current.phase });
+        renderRef.current?.();
+      };
+      canvas.addEventListener('webglcontextlost', handleContextLost);
+      canvas.addEventListener('webglcontextrestored', handleContextRestored);
+      removeContextListeners = () => {
+        canvas.removeEventListener('webglcontextlost', handleContextLost);
+        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      };
+      recordDiagnostic('renderer-ready', {
+        width: host.clientWidth,
+        height: host.clientHeight,
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
+        framePolicy: 'display-refresh',
+      });
+
+      let renderCount = 0;
+      let lastHeartbeatAt = performance.now();
 
       const render = () => {
         const now = performance.now();
@@ -486,6 +551,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
           winningCells: currentWinningCells,
           winningPaths: currentWinningPaths,
           bonusRoute: currentBonusRoute,
+          winTier: currentWinTier,
           reducedMotion: reducedMotionProp,
         } = latestRef.current;
         if (clock.phase !== currentPhase) {
@@ -583,7 +649,19 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         } else if (isResultPhase && currentWinningCells.length > 0) {
           drawWinningCells(app.stage, currentWinningCells, startX, startY, gap, cell, currentGrid.length, columns, resultStrength);
         }
+        drawWinTierVfx(app.stage, currentWinTier, currentPhase, startX, startY, boardWidth, boardHeight, shouldReduceMotion, elapsed);
         drawCoreCue(app.stage, currentGrid, currentPhase, startX, startY, gap, cell, shouldReduceMotion, elapsed);
+        renderCount += 1;
+        if (now - lastHeartbeatAt >= 10_000) {
+          lastHeartbeatAt = now;
+          recordDiagnosticRateLimited('renderer-heartbeat', {
+            renders: renderCount,
+            phase: currentPhase,
+            stageChildren: app.stage.children.length,
+            width,
+            height,
+          }, 9_500);
+        }
       };
 
       renderRef.current = render;
@@ -609,12 +687,15 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const winSequenceMs = Math.min(state.winningPaths.length, MAX_PRESENTED_WIN_PATHS) * MOTION.winPathCycleMs;
         const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < winSequenceMs + 64;
         const animateCore = (state.phase === 'bonus-choice' || state.phase === 'bonus') && hasCore && elapsed < MOTION.corePulseMs;
-        if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateWin || animateCore)) render();
+        const tierDuration = state.winTier === 'major' ? 2_600 : state.winTier === 'big' ? 2_150 : state.winTier === 'strong' ? 1_350 : 0;
+        const animateTier = isSettled && tierDuration > 0 && elapsed < tierDuration;
+        if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateWin || animateCore || animateTier)) render();
       });
     };
     void start().catch((error: unknown) => {
       if (disposed) return;
       console.error('PixiJS reel renderer failed to initialize.', error);
+      recordDiagnostic('renderer-init-error', { message: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) });
       const fallback = document.createElement('p');
       fallback.className = 'dp-renderer-fallback';
       fallback.textContent = 'Reel renderer unavailable. Game controls and mathematics remain active.';

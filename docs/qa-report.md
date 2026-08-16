@@ -7,10 +7,10 @@
 
 | Check | Result |
 | --- | --- |
-| `npm test` | Pass — 4 files, 30 tests |
+| `npm test` | Pass — 8 files, 45 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
-| Playwright development flows | Pass — 10 tests |
+| Playwright development flows | Pass — 17 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -18,6 +18,10 @@ payline/wild/scatter evaluation, ordinary and forced bonus entry, Alpha extracti
 Bravo multiplier/protection behavior, retrigger caps, simulation reproducibility, and
 main-thread/worker report parity. It also verifies that the developer-cheat factory is
 not exported by the public engine entry point.
+
+The audio additions cover deterministic cue ordering, committed-return win tiers,
+feature and route mapping, reduced-motion timing, versioned preference validation,
+blocked/corrupt storage fallback, persistent mute/volume controls, and preview activation.
 
 ## Browser smoke-test status
 
@@ -59,7 +63,7 @@ this presentation state for both routes and the application callback remains a s
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively
-futuristic. It now contains eleven 512×512 RGBA WebP symbol textures and one 2560×1440
+futuristic. It now contains eleven 512×512 RGBA WebP symbol textures and three 2560×1440
 RGB WebP environment. File inspection confirmed real 0–255 alpha ranges for the complete
 symbol family. The artwork uses grounded late-1990s/early-2000s materials: worn olive
 equipment, canvas, dull steel, sand polymer, and a sun-worn coastal concrete depot.
@@ -71,7 +75,7 @@ Live browser review confirmed that the new Pelagos Relay background preserves fo
 contrast and that the redesigned CORE texture loads in the forced feature grid. The
 cabinet, reel cells, typography, dialog, scoreboard, and primary control now use a
 restrained olive, concrete, canvas, amber, and brass palette without cyan glow effects.
-Production symbols use procedural fallbacks if loading fails. The ten Playwright flows
+Production symbols use procedural fallbacks if loading fails. The Playwright flows
 cover app stability, committed-result locking and provenance, exact winning-line and
 prominent-total output, the retained development cheat, both Alpha and Bravo continuations,
 bonus wager locking, 390 px overflow, reduced-motion stability, and deterministic equality
@@ -94,7 +98,7 @@ first total plaque obscured the final symbols, and the canvas trace could stop a
 beginning of a new cycle. The confirmed total now has a dedicated bar below the unobscured
 reels. A follow-up lifecycle fix replaced the persistent strongest-line overlay with a
 one-pass draw, hold, fade, and advance sequence. Live verification observed an active
-line at opacity 1 and the same line cleared to opacity 0 after its 900 ms slot. The ninth
+line at opacity 1 and the same line cleared to opacity 0 after its 900 ms slot. An automated
 Playwright flow verifies that animated paths clear after the complete sequence. Review at
 a 390 × 844 viewport confirmed aligned geometry and readable result hierarchy. A fresh
 browser session reported no warning or error logs.
@@ -119,9 +123,84 @@ CORE treatment, and visible development-fixture provenance. The complete eleven-
 contact sheet and desktop/mobile runtime layouts were reviewed; the 390 px document has
 no horizontal overflow and a fresh browser session reports no warnings or errors.
 
+## Win-tier VFX and feature environment QA
+
+Win intensity is derived only from the committed payout-to-wager ratio: standard below
+5×, strong at 5×, big at 10×, and major at 25×. Unit tests cover every boundary. Two
+deterministic browser fixtures verify the complete presentation path without altering
+the engine result: seed `00000001-000000f3` produces a 244-credit big win and seed
+`00000001-000000ff` produces a 639-credit major win. Both show the prominent count-up,
+payline treatment, cabinet/background response, and tier-specific Pixi effects. Reduced
+motion presents the final amount immediately and removes shake, sweeps, and particle
+travel while preserving the same payout and semantic announcement.
+
+The Alpha and Bravo environments are original generated edits of the approved Pelagos
+Relay base scene. Runtime inspection confirmed both 2560×1440 WebP files, and visual
+review confirmed a quiet reel area, readable controls, grounded concrete and steel
+materials, practical cold/amber lighting, and no copied branding or futuristic devices.
+The application crossfades from the base depot into the selected route, retains the
+route during automatic feature spins, and returns to base only after the feature summary
+is dismissed.
+
+A complete forced-Bravo browser flow ran through all automatic spins and reached the
+feature summary with the final virtual-credit return and spin count. Returning to base
+stopped route music, restored the base environment, and re-enabled the normal controls.
+Fresh-browser console and page-error capture reported no warnings or errors.
+
 ## Production cheat boundary
 
 The production build contains no `createDeveloperCheatBonus` reference, the normal
 engine entry point does not export it, and the development-only presentation strings
 are pruned from production output. Development builds intentionally retain the menu for
 QA fixtures.
+
+## Original audio QA
+
+The repository contains twenty 44.1 kHz Ogg Vorbis files produced entirely by
+`scripts/generate-audio.mjs`: one stereo 10-second ambience loop, two stereo 12-second
+route-music loops, and seventeen mono effects. The generator uses explicit oscillators,
+envelopes, and deterministic periodic components,
+conservative peak normalization, temporary PCM intermediates, and metadata-free Vorbis
+encoding. No recordings, sample packs, game audio, voice material, or network inputs are
+used. A second complete render produced identical SHA-256 hashes for every runtime file.
+
+The Web Audio mixer loads only local approved assets after a user gesture. Master,
+ambience, music, effects, and mute controls persist through a validated versioned preference
+record. Sound failures fall back to silent play. Cue scheduling reads the immutable
+`SpinResult` after the engine has finished; it neither consumes RNG nor mutates a payout.
+Bonus autoplay calls the same audio path as manual bonus spins. Every meaningful cue has
+an existing visual and semantic equivalent.
+
+Route selection starts the matching original Alpha or Bravo music loop and crossfades
+away any previous route. Feature completion adds an original completion stinger, stops
+the loop, and leaves the summary readable without continuous music. Big and major wins
+use distinct original stingers, while feature retriggers receive a short functional cue.
+The version-2 preference record adds an independent music level and migrates complete
+version-1 records; browser coverage confirms that the music value persists after reload.
+The deterministic encoder includes a bounded retry for transient Windows FFmpeg process
+startup failures and still writes only byte-changed outputs.
+
+All gameplay one-shots are noise-free. The no-payout release was removed, so a dry spin
+ends on the final clean reel latch rather than adding a separate hiss, scrape, or tail.
+
+## Crash diagnostics and resource hardening
+
+A reported Codex in-app Chromium renderer crash showed the browser's native “page
+crashed” surface while the Vite server remained responsive with HTTP 200 and no server
+exception. The terminal did show dozens of asset-triggered hot reloads during repeated
+audio verification. The generator now performs byte comparisons and leaves unchanged
+runtime assets and metadata untouched.
+
+The application retains the latest 240 local technical events across reload, detects an
+unclean previous session, and exposes copy/clear controls through the Diagnostics dialog.
+Global errors, unhandled rejections, React failures, spin transitions, audio state, and
+Pixi renderer/context events are covered. No remote telemetry or personal data is used.
+The log cannot capture Chromium's native crash dump after the renderer process has died.
+
+Audio one-shots now disconnect sources and gains on completion and cap concurrency at
+32. A separate 180 ms spin-entry gate prevents synchronous click bursts from re-entering
+the handler before the normal presenting-phase lock commits. PixiJS animation follows
+the browser's display-synchronized frame rate and stops expensive redraws while idle.
+Browser coverage verifies diagnostic visibility, committed-spin records, that
+a 100-click synchronous burst produces exactly one engine transition, and that 30 fast
+accepted spins retain one renderer canvas and a bounded diagnostic log.
