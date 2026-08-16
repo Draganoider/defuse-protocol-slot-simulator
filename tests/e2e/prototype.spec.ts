@@ -99,6 +99,35 @@ test('ordinary spin presents its committed result and returns to ready', async (
   expect(runtimeErrors).toEqual([]);
 });
 
+test('winning result exposes a payline ledger and prominent committed total', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  let foundWin = false;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await spin.click();
+    await page.waitForTimeout(20);
+    if (await page.locator('.dp-win-ledger').count()) {
+      foundWin = true;
+      break;
+    }
+    expect(await page.getByRole('dialog', { name: 'Choose a relay route' }).count()).toBe(0);
+  }
+
+  expect(foundWin).toBe(true);
+  await expect(page.locator('.dp-prototype')).toHaveClass(/dp-prototype--win/);
+  await expect(page.locator('.dp-payline-overlay')).toBeVisible();
+  await expect(page.locator('.dp-payline-overlay__trace')).toHaveAttribute('points', /\d,\d/);
+  await expect(page.locator('.dp-win-total strong')).toContainText(/^\+[\d,]+$/);
+  await expect(page.getByRole('region', { name: 'Winning paylines' })).toBeVisible();
+  await expect(page.locator('.dp-win-ledger li').first()).toContainText(/Line \d{2}/);
+  await expect(page.locator('#dp-result-feedback')).toContainText(/Strongest: line \d+/);
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 for (const route of ['Alpha', 'Bravo'] as const) {
   test(`Relay ${route} autospins can pause and resume while wagers stay locked`, async ({ page }) => {
     const runtimeErrors = collectRuntimeErrors(page);
@@ -115,7 +144,7 @@ for (const route of ['Alpha', 'Bravo'] as const) {
     const featureStatus = page.getByRole('region', { name: `Relay ${route} status` });
     const pauseAutospins = page.getByRole('button', { name: 'Pause auto spins' });
     await expect(featureStatus).toBeVisible();
-    await expect(page.locator('#dp-result-feedback')).toContainText('Defuse Operation active');
+    await expect(page.locator('#dp-result-feedback')).toContainText(/Defuse Operation active|payout confirmed/);
     await expect(pauseAutospins).toBeEnabled();
     await expect(decreaseWager).toBeDisabled();
     await expect(increaseWager).toBeDisabled();
@@ -134,7 +163,7 @@ for (const route of ['Alpha', 'Bravo'] as const) {
     await pauseAutospins.click();
     await expect(resumeAutospins).toBeEnabled();
     await expect(featureStatus).toBeVisible();
-    await expect(page.locator('#dp-result-feedback')).toContainText('Defuse Operation active');
+    await expect(page.locator('#dp-result-feedback')).toContainText(/Defuse Operation active|payout confirmed/);
     await expect(decreaseWager).toBeDisabled();
     await expect(increaseWager).toBeDisabled();
     await expect(page.getByText(/Replay BONUS-/)).toBeVisible();

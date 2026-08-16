@@ -20,6 +20,14 @@ export interface ReelCell {
   readonly column: number;
 }
 
+export interface WinningPath {
+  readonly lineIndex: number;
+  readonly symbolId: string;
+  readonly payout: number;
+  readonly positions: readonly ReelCell[];
+  readonly winningPositions?: readonly ReelCell[];
+}
+
 export interface ReelCanvasProps {
   /** The complete grid selected by the engine. This component never changes it. */
   grid: ReelGrid;
@@ -27,6 +35,8 @@ export interface ReelCanvasProps {
   phase: 'ready' | 'spinning' | 'result' | 'bonus-choice' | 'bonus';
   /** Optional immutable outcome metadata for exact result emphasis. */
   winningCells?: readonly ReelCell[];
+  /** Evaluated payline paths supplied by the engine result. */
+  winningPaths?: readonly WinningPath[];
   /** Optional route metadata; omitted during base play and before a choice. */
   bonusRoute?: 'alpha' | 'bravo';
   reducedMotion?: boolean;
@@ -47,21 +57,24 @@ const MOTION = {
   reelBaseMs: 244,
   reelStaggerMs: 47,
   resultEmphasisMs: 460,
+  winPathDrawMs: 620,
+  winPathCycleMs: 1_100,
+  winResponseMs: 3_400,
   corePulseMs: 1_400,
 } as const;
 
-const SYMBOLS: Record<string, { label: string; accent: number; shape: 'circle' | 'case' | 'diamond' | 'arc' }> = {
-  CORE: { label: 'CORE', accent: PALETTE.cyan, shape: 'circle' },
-  WILD: { label: 'WILD', accent: PALETTE.gold, shape: 'diamond' },
-  RECOVERY: { label: 'RCV', accent: PALETTE.gold, shape: 'case' },
-  ARMOR: { label: 'ARM', accent: PALETTE.gold, shape: 'case' },
-  OPTIC: { label: 'OPT', accent: PALETTE.cyan, shape: 'circle' },
-  RADIO: { label: 'COM', accent: PALETTE.amber, shape: 'arc' },
-  SIDEARM: { label: 'SID', accent: PALETTE.amber, shape: 'diamond' },
-  KNIFE: { label: 'KNF', accent: PALETTE.slate, shape: 'diamond' },
-  CARBINE: { label: 'CRB', accent: PALETTE.cyan, shape: 'arc' },
-  PRECISION: { label: 'PRS', accent: PALETTE.gold, shape: 'arc' },
-  KEYCARD: { label: 'KEY', accent: PALETTE.slate, shape: 'case' },
+const SYMBOLS: Record<string, { name: string; mark?: string; accent: number; shape: 'circle' | 'case' | 'diamond' | 'arc' }> = {
+  CORE: { name: 'Signal Core', mark: 'CORE', accent: PALETTE.cyan, shape: 'circle' },
+  WILD: { name: 'Containment Specialist', mark: 'WILD', accent: PALETTE.gold, shape: 'diamond' },
+  RECOVERY: { name: 'Recovery Case', accent: PALETTE.gold, shape: 'case' },
+  ARMOR: { name: 'Armor Rig', accent: PALETTE.gold, shape: 'case' },
+  OPTIC: { name: 'Optical Scanner', accent: PALETTE.cyan, shape: 'circle' },
+  RADIO: { name: 'Field Radio', accent: PALETTE.amber, shape: 'arc' },
+  SIDEARM: { name: 'Suppressed Sidearm', accent: PALETTE.amber, shape: 'diamond' },
+  KNIFE: { name: 'Utility Knife', accent: PALETTE.slate, shape: 'diamond' },
+  CARBINE: { name: 'Tactical Carbine', accent: PALETTE.cyan, shape: 'arc' },
+  PRECISION: { name: 'Precision Platform', accent: PALETTE.gold, shape: 'arc' },
+  KEYCARD: { name: 'Access Keycard', accent: PALETTE.slate, shape: 'case' },
 };
 
 const PRODUCTION_SYMBOL_ASSETS = {
@@ -93,7 +106,7 @@ async function loadProductionTextures() {
 }
 
 function resolveSymbol(id: string) {
-  return SYMBOLS[id.toUpperCase()] ?? { label: id.slice(0, 4).toUpperCase(), accent: PALETTE.slate, shape: 'diamond' as const };
+  return SYMBOLS[id.toUpperCase()] ?? { name: id, accent: PALETTE.slate, shape: 'diamond' as const };
 }
 
 function clamp01(value: number) {
@@ -138,14 +151,15 @@ function drawSymbol(
   }
 
   const centerX = size / 2;
-  const centerY = size / 2 - 8;
+  const centerY = size / 2 - (symbol.mark ? size * 0.045 : 0);
   const productionTexture = textures.get(id.toUpperCase());
   if (productionTexture) {
     const art = new Sprite(productionTexture);
     art.anchor.set(0.5);
     art.position.set(centerX, centerY + 1);
-    art.width = size * 0.72;
-    art.height = size * 0.72;
+    const artSize = size * (symbol.mark ? 0.72 : 0.84);
+    art.width = artSize;
+    art.height = artSize;
     layer.addChild(art);
   } else {
     const art = new Graphics();
@@ -169,10 +183,26 @@ function drawSymbol(
     layer.addChild(art);
   }
 
-  const label = new Text({ text: symbol.label, style: new TextStyle({ fill: PALETTE.mist, fontFamily: 'Arial, sans-serif', fontSize: Math.max(10, size * 0.13), fontWeight: '700', letterSpacing: 1.4 }) });
-  label.anchor.set(0.5, 0.5);
-  label.position.set(centerX, size * 0.8);
-  layer.addChild(label);
+  if (symbol.mark) {
+    layer.addChild(new Graphics()
+      .roundRect(size * 0.22, size * 0.76, size * 0.56, size * 0.16, 2)
+      .fill({ color: PALETTE.deep, alpha: 0.88 })
+      .stroke({ color: symbol.accent, width: 1, alpha: 0.8 }));
+    const label = new Text({
+      text: symbol.mark,
+      style: new TextStyle({
+        fill: symbol.accent,
+        fontFamily: 'Bahnschrift Condensed, Arial Narrow, sans-serif',
+        fontSize: Math.max(10, size * 0.12),
+        fontWeight: '800',
+        letterSpacing: 1.8,
+        stroke: { color: PALETTE.deep, width: 2 },
+      }),
+    });
+    label.anchor.set(0.5, 0.5);
+    label.position.set(centerX, size * 0.84);
+    layer.addChild(label);
+  }
 
   if (scanOffset > 0) {
     layer.addChild(new Graphics().rect(5, (scanOffset + x * 0.15) % size, size - 10, 2).fill({ color: PALETTE.amber, alpha: 0.2 }));
@@ -234,6 +264,143 @@ function drawWinningCells(
   });
 }
 
+function cellCenter(
+  position: ReelCell,
+  startX: number,
+  startY: number,
+  gap: number,
+  cell: number,
+) {
+  return {
+    x: startX + gap + position.column * (cell + gap) + cell / 2,
+    y: startY + gap + position.row * (cell + gap) + cell / 2,
+  };
+}
+
+function partialLine(
+  points: readonly { x: number; y: number }[],
+  progress: number,
+  color: number,
+  width: number,
+  alpha: number,
+) {
+  const graphic = new Graphics();
+  if (points.length === 0) return graphic;
+  graphic.moveTo(points[0].x, points[0].y);
+  if (points.length === 1) return graphic.circle(points[0].x, points[0].y, width).fill({ color, alpha });
+
+  const scaled = clamp01(progress) * (points.length - 1);
+  const wholeSegments = Math.floor(scaled);
+  for (let index = 1; index <= wholeSegments; index += 1) {
+    graphic.lineTo(points[index].x, points[index].y);
+  }
+  if (wholeSegments < points.length - 1) {
+    const fraction = scaled - wholeSegments;
+    const from = points[wholeSegments];
+    const to = points[wholeSegments + 1];
+    graphic.lineTo(from.x + (to.x - from.x) * fraction, from.y + (to.y - from.y) * fraction);
+  }
+  return graphic.stroke({ color, width, alpha, cap: 'round', join: 'round' });
+}
+
+function drawRouteRibbon(stage: Container, points: readonly { x: number; y: number }[], progress: number, width: number) {
+  const segmentCount = Math.max(0, Math.ceil((points.length - 1) * progress));
+  for (let index = 0; index < segmentCount; index += 1) {
+    const from = points[index];
+    const to = points[index + 1];
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (length === 0) continue;
+    const segmentProgress = clamp01(progress * (points.length - 1) - index);
+    const end = {
+      x: from.x + (to.x - from.x) * segmentProgress,
+      y: from.y + (to.y - from.y) * segmentProgress,
+    };
+    const halfWidth = width / 2;
+    const perpendicularX = -((to.y - from.y) / length) * halfWidth;
+    const perpendicularY = ((to.x - from.x) / length) * halfWidth;
+    stage.addChild(new Graphics()
+      .poly([
+        from.x + perpendicularX, from.y + perpendicularY,
+        end.x + perpendicularX, end.y + perpendicularY,
+        end.x - perpendicularX, end.y - perpendicularY,
+        from.x - perpendicularX, from.y - perpendicularY,
+      ])
+      .fill({ color: PALETTE.gold, alpha: 0.22 })
+      .stroke({ color: PALETTE.deep, width: 2, alpha: 0.84 }));
+  }
+}
+
+function drawWinningPaths(
+  stage: Container,
+  paths: readonly WinningPath[],
+  startX: number,
+  startY: number,
+  gap: number,
+  cell: number,
+  rows: number,
+  columns: number,
+  reducedMotion: boolean,
+  elapsed: number,
+) {
+  const validPaths = paths.map((path) => ({
+    ...path,
+    positions: path.positions
+      .filter(({ row, column }) => Number.isInteger(row) && Number.isInteger(column) && row >= 0 && column >= 0 && row < rows && column < columns)
+      .slice()
+      .sort((left, right) => left.column - right.column),
+  })).filter((path) => path.positions.length > 0);
+  if (validPaths.length === 0) return;
+
+  const settled = elapsed >= MOTION.winResponseMs;
+  const activeIndex = reducedMotion || settled ? 0 : Math.floor(elapsed / MOTION.winPathCycleMs) % validPaths.length;
+  const activePath = validPaths[activeIndex];
+  const cycleElapsed = reducedMotion || settled ? MOTION.winPathDrawMs + 90 : elapsed % MOTION.winPathCycleMs;
+  const drawProgress = reducedMotion || settled ? 1 : easeOutCubic(clamp01((cycleElapsed - 90) / MOTION.winPathDrawMs));
+  const activeKeys = new Set(activePath.positions.map(({ row, column }) => `${row}:${column}`));
+  const payingPositions = activePath.winningPositions?.length ? activePath.winningPositions : activePath.positions;
+
+  const dimmer = new Graphics();
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      if (activeKeys.has(`${row}:${column}`)) continue;
+      const x = startX + gap + column * (cell + gap);
+      const y = startY + gap + row * (cell + gap);
+      dimmer.roundRect(x + 3, y + 3, cell - 6, cell - 6, 2).fill({ color: PALETTE.deep, alpha: 0.42 });
+    }
+  }
+  stage.addChild(dimmer);
+
+  validPaths.forEach((path, index) => {
+    if (index === activeIndex) return;
+    const points = path.positions.map((position) => cellCenter(position, startX, startY, gap, cell));
+    stage.addChild(partialLine(points, 1, PALETTE.slate, Math.max(2, cell * 0.025), 0.24));
+  });
+
+  const points = activePath.positions.map((position) => cellCenter(position, startX, startY, gap, cell));
+  const lineWidth = Math.max(3, cell * 0.045);
+  drawRouteRibbon(stage, points, drawProgress, Math.max(10, cell * 0.1));
+  stage.addChild(partialLine(points, drawProgress, PALETTE.deep, lineWidth + 5, 0.88));
+  stage.addChild(partialLine(points, drawProgress, PALETTE.gold, lineWidth, 0.98));
+  stage.addChild(partialLine(points, drawProgress, PALETTE.amber, Math.max(1.5, lineWidth * 0.36), 1));
+
+  const cellPulse = reducedMotion ? 0.82 : 0.78 + Math.sin(elapsed / 145) * 0.14;
+  payingPositions.forEach((position) => {
+    const pathIndex = activePath.positions.findIndex(({ row, column }) => row === position.row && column === position.column);
+    const visitPoint = activePath.positions.length === 1 ? 1 : Math.max(0, pathIndex) / (activePath.positions.length - 1);
+    if (visitPoint > drawProgress + 0.08) return;
+    const x = startX + gap + position.column * (cell + gap);
+    const y = startY + gap + position.row * (cell + gap);
+    const center = cellCenter(position, startX, startY, gap, cell);
+    stage.addChild(new Graphics()
+      .roundRect(x - 1, y - 1, cell + 2, cell + 2, 4)
+      .fill({ color: PALETTE.gold, alpha: 0.07 + cellPulse * 0.05 })
+      .stroke({ color: PALETTE.gold, width: Math.max(2.5, cell * 0.035), alpha: cellPulse })
+      .circle(center.x, center.y, Math.max(4, cell * 0.055))
+      .fill({ color: PALETTE.mist, alpha: 0.94 })
+      .stroke({ color: PALETTE.deep, width: 2, alpha: 0.9 }));
+  });
+}
+
 function drawCoreCue(
   stage: Container,
   grid: ReelGrid,
@@ -261,15 +428,15 @@ function drawCoreCue(
  * An original PixiJS v8 reel renderer. The grid is always the committed engine
  * result; deterministic animation only changes how that grid is presented.
  */
-export function ReelCanvas({ grid, phase, winningCells = [], bonusRoute, reducedMotion = false, className }: ReelCanvasProps) {
+export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], bonusRoute, reducedMotion = false, className }: ReelCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const renderRef = useRef<(() => void) | null>(null);
-  const latestRef = useRef({ grid, phase, winningCells, bonusRoute, reducedMotion });
-  latestRef.current = { grid, phase, winningCells, bonusRoute, reducedMotion };
+  const latestRef = useRef({ grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion });
+  latestRef.current = { grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion };
 
   useEffect(() => {
     renderRef.current?.();
-  }, [grid, phase, winningCells, bonusRoute, reducedMotion]);
+  }, [grid, phase, winningCells, winningPaths, bonusRoute, reducedMotion]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -310,6 +477,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], bonusRoute, reduced
           grid: currentGrid,
           phase: currentPhase,
           winningCells: currentWinningCells,
+          winningPaths: currentWinningPaths,
           bonusRoute: currentBonusRoute,
           reducedMotion: reducedMotionProp,
         } = latestRef.current;
@@ -333,7 +501,11 @@ export function ReelCanvas({ grid, phase, winningCells = [], bonusRoute, reduced
         const startY = (height - boardHeight) / 2;
         const isResultPhase = currentPhase === 'result' || currentPhase === 'bonus-choice' || currentPhase === 'bonus';
         const resultProgress = clamp01(elapsed / MOTION.resultEmphasisMs);
-        const resultStrength = isResultPhase ? (shouldReduceMotion ? 0.16 : pulseEnvelope(resultProgress) * 0.55) : 0;
+        const hasLineWin = isResultPhase && currentWinningPaths.length > 0;
+        const winPulse = shouldReduceMotion ? 0.78 : 0.72 + Math.sin(Math.min(elapsed, MOTION.winResponseMs) / 165) * 0.12;
+        const resultStrength = isResultPhase
+          ? hasLineWin ? winPulse : shouldReduceMotion ? 0.16 : pulseEnvelope(resultProgress) * 0.55
+          : 0;
         const board = new Graphics()
           .roundRect(startX - 5, startY - 5, boardWidth + 10, boardHeight + 10, 3)
           .fill({ color: PALETTE.deep, alpha: 0.94 })
@@ -388,7 +560,20 @@ export function ReelCanvas({ grid, phase, winningCells = [], bonusRoute, reduced
           app.stage.addChild(new Graphics().rect(startX + 2, sweepY, boardWidth - 4, 2).fill({ color: PALETTE.amber, alpha: resultStrength * 0.35 }));
         }
 
-        if (isResultPhase && currentWinningCells.length > 0) {
+        if (hasLineWin) {
+          drawWinningPaths(
+            app.stage,
+            currentWinningPaths,
+            startX,
+            startY,
+            gap,
+            cell,
+            currentGrid.length,
+            columns,
+            shouldReduceMotion,
+            elapsed,
+          );
+        } else if (isResultPhase && currentWinningCells.length > 0) {
           drawWinningCells(app.stage, currentWinningCells, startX, startY, gap, cell, currentGrid.length, columns, resultStrength);
         }
         drawCoreCue(app.stage, currentGrid, currentPhase, startX, startY, gap, cell, shouldReduceMotion, elapsed);
@@ -410,9 +595,14 @@ export function ReelCanvas({ grid, phase, winningCells = [], bonusRoute, reduced
         const elapsed = performance.now() - clock.phaseStartedAt;
         const shouldReduceMotion = state.reducedMotion || mediaReduced;
         const hasCore = state.grid.some((row) => row.some((id) => id.toUpperCase() === 'CORE'));
-        const animateResult = (state.phase === 'result' || state.phase === 'bonus-choice' || state.phase === 'bonus') && elapsed < MOTION.resultEmphasisMs;
+        const isSettled = state.phase === 'result' || state.phase === 'bonus-choice' || state.phase === 'bonus';
+        const animateResult = isSettled && elapsed < MOTION.resultEmphasisMs;
+        // Keep the ticker alive for a final frame after the response window so
+        // the renderer settles on a complete, persistent path instead of the
+        // beginning of a new cycle.
+        const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < MOTION.winResponseMs + 64;
         const animateCore = (state.phase === 'bonus-choice' || state.phase === 'bonus') && hasCore && elapsed < MOTION.corePulseMs;
-        if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateCore)) render();
+        if (!shouldReduceMotion && (state.phase === 'spinning' || animateResult || animateWin || animateCore)) render();
       });
     };
     void start().catch((error: unknown) => {

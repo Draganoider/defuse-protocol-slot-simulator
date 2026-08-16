@@ -10,7 +10,7 @@
 | `npm test` | Pass — 4 files, 30 tests |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass |
-| Playwright development flows | Pass — 7 tests |
+| Playwright development flows | Pass — 8 tests |
 | Development server response | Pass — local server returned HTTP 200 |
 
 The existing automated coverage verifies deterministic base spins, grid construction,
@@ -71,21 +71,30 @@ Live browser review confirmed that the new Pelagos Relay background preserves fo
 contrast and that the redesigned CORE texture loads in the forced feature grid. The
 cabinet, reel cells, typography, dialog, scoreboard, and primary control now use a
 restrained olive, concrete, canvas, amber, and brass palette without cyan glow effects.
-Production symbols use procedural fallbacks if loading fails. The seven Playwright flows
-cover app stability, committed-result locking and provenance, the retained development
-cheat, both Alpha and Bravo continuations, bonus wager locking, 390 px overflow, reduced
-motion stability, and deterministic equality across motion preferences without application
-console errors.
+Production symbols use procedural fallbacks if loading fails. The eight Playwright flows
+cover app stability, committed-result locking and provenance, exact winning-line and
+prominent-total output, the retained development cheat, both Alpha and Bravo continuations,
+bonus wager locking, 390 px overflow, reduced-motion stability, and deterministic equality
+across motion preferences without application console errors.
 
 ## Result-driven motion QA
 
-The application derives exact winning cells from the authoritative `SpinResult` and
-passes them to PixiJS alongside the already committed grid and selected bonus route.
-Live review confirmed staggered reel settling, restrained landing response, CORE rings,
-and distinct Alpha/Bravo rails. React exposes the same state through visible text, an
-atomic polite live region, `aria-busy`, Alpha progress semantics, and Bravo multiplier
-and protection labels. A fresh browser session produced no warning or error logs; stale
-HMR messages in the long-lived development tab were not reproducible after a clean load.
+The application derives exact winning cells and ordered payline paths from the
+authoritative `SpinResult` and passes them to PixiJS alongside the already committed
+grid and selected bonus route. The presentation traces the evaluated path across all
+five reels, marks only the paying positions, dims non-winning cells, and cycles multiple
+paths without recalculating payout. React exposes the same committed result through a
+large `+N VC` total, a full-symbol-name line ledger, visible
+feedback, an atomic polite live region, `aria-busy`, Alpha progress semantics, and Bravo
+multiplier and protection labels. Ordinary symbols no longer carry three-letter text;
+only the functional CORE and WILD marks retain purpose-built condensed nameplates.
+
+Live desktop review caught and resolved two presentation defects before release: the
+first total plaque obscured the final symbols, and the canvas trace could stop at the
+beginning of a new cycle. The confirmed total now has a dedicated bar below the unobscured
+reels, and a crisp responsive trace remains visible in the settled state. Review at a
+390 × 844 viewport confirmed aligned geometry and readable result hierarchy. A fresh
+browser session reported no warning or error logs.
 
 Automated comparison confirms that the scoreboard, seed, replay identifier, and
 configuration provenance do not change across the normal presentation boundary. A

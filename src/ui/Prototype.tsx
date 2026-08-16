@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { ReelCanvas, type ReelCell, type ReelGrid } from '../renderer/ReelCanvas';
+import { ReelCanvas, type ReelCell, type ReelGrid, type WinningPath } from '../renderer/ReelCanvas';
 import './prototype.css';
 
 const DevCheats = import.meta.env.DEV
@@ -42,6 +42,8 @@ export interface PrototypeProps {
   grid: ReelGrid;
   /** Immutable cell coordinates from the evaluated engine result. */
   winningCells?: readonly ReelCell[];
+  /** Authoritative evaluated payline summaries used for visual tracing and labels. */
+  winningPaths?: readonly WinningPath[];
   phase: PresentationPhase;
   seed: string;
   replayId?: string;
@@ -71,12 +73,30 @@ const initialGrid: ReelGrid = [
   ['PRECISION', 'RADIO', 'ARMOR', 'OPTIC', 'RECOVERY'],
 ];
 
+const SYMBOL_NAMES: Readonly<Record<string, string>> = {
+  CORE: 'Signal Core',
+  WILD: 'Containment Specialist',
+  RECOVERY: 'Recovery Case',
+  PRECISION: 'Precision Platform',
+  CARBINE: 'Tactical Carbine',
+  KNIFE: 'Utility Knife',
+  SIDEARM: 'Suppressed Sidearm',
+  OPTIC: 'Optical Scanner',
+  ARMOR: 'Armor Rig',
+  KEYCARD: 'Access Keycard',
+  RADIO: 'Field Radio',
+};
+
 function formatCredits(value: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
 }
 
 function percent(value: number) {
   return `${(value * 100).toFixed(2)}%`;
+}
+
+function symbolName(id: string) {
+  return SYMBOL_NAMES[id.toUpperCase()] ?? id;
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'amber' | 'cyan' }) {
@@ -93,8 +113,11 @@ export function Prototype(props: PrototypeProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [cheatOpen, setCheatOpen] = useState(false);
   const activeGrid = props.grid.length ? props.grid : initialGrid;
+  const winningPaths = props.winningPaths ?? [];
   const inFeature = props.phase === 'bonus'
     || (props.phase === 'spinning' && Boolean(props.bonus?.route));
+  const hasPresentedWin = props.lastWin > 0 && (props.phase === 'result' || props.phase === 'bonus');
+  const strongestPath = winningPaths.reduce<WinningPath | undefined>((best, path) => !best || path.payout > best.payout ? path : best, undefined);
   const spinDisabled = props.phase === 'spinning' || props.phase === 'bonus-choice';
   const wagerControlsDisabled = spinDisabled || inFeature;
   const outcomeFeedback = useMemo(() => {
@@ -112,6 +135,19 @@ export function Prototype(props: PrototypeProps) {
       tone: 'feature',
       statusLabel: 'Awaiting route',
     } as const;
+    if (hasPresentedWin) {
+      const route = inFeature ? `${props.bonus?.route === 'bravo' ? 'Relay Bravo' : 'Relay Alpha'} · ` : '';
+      const lineDetail = strongestPath
+        ? `${winningPaths.length} winning ${winningPaths.length === 1 ? 'line' : 'lines'}. Strongest: line ${strongestPath.lineIndex + 1}, ${symbolName(strongestPath.symbolId)} ×${strongestPath.winningPositions?.length ?? strongestPath.positions.length}, +${formatCredits(strongestPath.payout)} VC.`
+        : 'Virtual-credit payout applied from the committed result.';
+      return {
+        eyebrow: `${route}payout confirmed`,
+        title: `+${formatCredits(props.lastWin)} VC`,
+        detail: lineDetail,
+        tone: 'win',
+        statusLabel: inFeature ? 'Feature payout confirmed' : 'Payout confirmed',
+      } as const;
+    }
     if (inFeature) {
       const route = props.bonus?.route === 'bravo' ? 'Relay Bravo' : 'Relay Alpha';
       const spins = props.bonus?.spinsRemaining;
@@ -125,13 +161,6 @@ export function Prototype(props: PrototypeProps) {
         statusLabel: `${route} active`,
       } as const;
     }
-    if (props.phase === 'result' && props.lastWin > 0) return {
-      eyebrow: 'Result confirmed',
-      title: `+${formatCredits(props.lastWin)} VC`,
-      detail: 'Virtual-credit payout applied. The presentation did not determine or alter this result.',
-      tone: 'win',
-      statusLabel: 'Payout confirmed',
-    } as const;
     if (props.phase === 'result') return {
       eyebrow: 'Result confirmed',
       title: 'No line payout',
@@ -148,13 +177,19 @@ export function Prototype(props: PrototypeProps) {
       tone: 'neutral',
       statusLabel: 'System secure',
     } as const;
-  }, [inFeature, props.bonus?.route, props.bonus?.spinsRemaining, props.bonusAutoplay, props.lastWin, props.phase]);
+  }, [hasPresentedWin, inFeature, props.bonus?.route, props.bonus?.spinsRemaining, props.bonusAutoplay, props.lastWin, props.phase, strongestPath, winningPaths.length]);
 
   const cabinetClassName = [
     'dp-cabinet',
     inFeature && 'dp-cabinet--feature',
     inFeature && props.bonus?.route && `dp-cabinet--${props.bonus.route}`,
-    props.phase === 'result' && props.lastWin > 0 && 'dp-cabinet--win',
+    hasPresentedWin && 'dp-cabinet--win',
+  ].filter(Boolean).join(' ');
+
+  const prototypeClassName = [
+    'dp-prototype',
+    props.reducedMotion && 'dp-prototype--reduced-motion',
+    hasPresentedWin && 'dp-prototype--win',
   ].filter(Boolean).join(' ');
 
   useEffect(() => {
@@ -162,7 +197,8 @@ export function Prototype(props: PrototypeProps) {
   }, [props.devCheatsEnabled]);
 
   return (
-    <main className={`dp-prototype${props.reducedMotion ? ' dp-prototype--reduced-motion' : ''}`}>
+    <main className={prototypeClassName}>
+      <span className="dp-win-ambient" aria-hidden="true" />
       <header className="dp-topbar">
         <div><p className="dp-kicker">Pelagos Relay · containment console</p><h1>Defuse Protocol</h1></div>
         <div className="dp-topbar__actions">
@@ -175,7 +211,17 @@ export function Prototype(props: PrototypeProps) {
 
       <section className={cabinetClassName} aria-label="Defuse Protocol slot simulator" aria-busy={props.phase === 'spinning'} aria-describedby="dp-result-feedback">
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
-        <div className="dp-reel-frame"><ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} bonusRoute={props.bonus?.route} reducedMotion={props.reducedMotion} className="dp-reel-canvas" /></div>
+        <div className="dp-reel-frame">
+          <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={props.bonus?.route} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
+          {hasPresentedWin && strongestPath && <PaylineOverlay path={strongestPath} />}
+        </div>
+        {hasPresentedWin && (
+          <div className="dp-win-total" aria-hidden="true">
+            <span>Confirmed return</span>
+            <strong>+{formatCredits(props.lastWin)}</strong>
+            <small>VC</small>
+          </div>
+        )}
         <section
           key={`${props.phase}-${props.replayId ?? props.seed}-${props.lastWin}`}
           id="dp-result-feedback"
@@ -188,6 +234,7 @@ export function Prototype(props: PrototypeProps) {
           <strong>{outcomeFeedback.title}</strong>
           <span>{outcomeFeedback.detail}</span>
         </section>
+        {hasPresentedWin && winningPaths.length > 0 && <WinLedger paths={winningPaths} />}
         <dl className="dp-scoreboard">
           <Stat label="Balance" value={`${formatCredits(props.balance)} VC`} />
           <Stat label="Total wager" value={`${formatCredits(props.totalWager)} VC`} tone="amber" />
@@ -222,6 +269,39 @@ export function Prototype(props: PrototypeProps) {
       {labOpen && <LabPanel statistics={props.simulation} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
     </main>
+  );
+}
+
+function WinLedger({ paths }: { paths: readonly WinningPath[] }) {
+  const visiblePaths = paths.slice(0, 4);
+  return (
+    <section className="dp-win-ledger" aria-label="Winning paylines">
+      <header><span>Confirmed paylines</span><b>{paths.length}</b></header>
+      <ol>
+        {visiblePaths.map((path) => (
+          <li key={`${path.lineIndex}-${path.symbolId}`}>
+            <span>Line {String(path.lineIndex + 1).padStart(2, '0')}</span>
+            <strong>{symbolName(path.symbolId)} ×{path.winningPositions?.length ?? path.positions.length}</strong>
+            <b>+{formatCredits(path.payout)} VC</b>
+          </li>
+        ))}
+      </ol>
+      {paths.length > visiblePaths.length && <p>+{paths.length - visiblePaths.length} additional winning paylines</p>}
+    </section>
+  );
+}
+
+function PaylineOverlay({ path }: { path: WinningPath }) {
+  const points = path.positions.map(({ column, row }) => `${column},${row}`).join(' ');
+  const payingPositions = path.winningPositions?.length ? path.winningPositions : path.positions;
+  return (
+    <svg className="dp-payline-overlay" viewBox="-0.5 -0.5 5 3" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <polyline className="dp-payline-overlay__shadow" points={points} pathLength="1" />
+      <polyline className="dp-payline-overlay__trace" points={points} pathLength="1" />
+      {payingPositions.map(({ column, row }) => (
+        <circle key={`${column}-${row}`} className="dp-payline-overlay__contact" cx={column} cy={row} r="0.055" />
+      ))}
+    </svg>
   );
 }
 

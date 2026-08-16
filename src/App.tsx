@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_GAME_CONFIG,
+  PAYLINES_20,
   buildGrid,
   chooseBonusRoute,
   createSession,
@@ -21,11 +22,12 @@ import {
   type PrototypeBonus,
   type PrototypeStatistics,
 } from './ui/Prototype';
-import type { ReelCell, ReelGrid } from './renderer/ReelCanvas';
+import type { ReelCell, ReelGrid, WinningPath } from './renderer/ReelCanvas';
 
 const STARTING_BALANCE = 2_000;
 const PRESENTATION_MS = 520;
 const BONUS_AUTOPLAY_GAP_MS = 650;
+const BONUS_AUTOPLAY_WIN_GAP_MS = 1_800;
 
 function createUiSeed(): string {
   const values = new Uint32Array(2);
@@ -62,6 +64,17 @@ function winningCells(result: SpinResult): readonly ReelCell[] {
     }
   }
   return [...unique.values()];
+}
+
+function winningPaths(result: SpinResult): readonly WinningPath[] {
+  return result.lineWins.map((win) => ({
+    lineIndex: win.lineIndex,
+    symbolId: win.symbolId,
+    payout: win.payout,
+    positions: (PAYLINES_20[win.lineIndex] ?? win.positions.map((position) => position.row))
+      .map((row, column) => ({ row, column })),
+    winningPositions: win.positions.map((position) => ({ row: position.row, column: position.reel })),
+  }));
 }
 
 function bonusView(session: GameSession): PrototypeBonus | undefined {
@@ -119,6 +132,7 @@ export function App() {
   const [phase, setPhase] = useState<PresentationPhase>('ready');
   const [lastReplayId, setLastReplayId] = useState<string>();
   const [highlightedCells, setHighlightedCells] = useState<readonly ReelCell[]>([]);
+  const [highlightedPaths, setHighlightedPaths] = useState<readonly WinningPath[]>([]);
   const [forcedFixture, setForcedFixture] = useState(false);
   const [simulation, setSimulation] = useState<PrototypeStatistics>();
   const [simulationRunning, setSimulationRunning] = useState(false);
@@ -165,6 +179,7 @@ export function App() {
     setGrid(transposeGrid(result.evaluatedGrid));
     setLastWin(result.totalPayout);
     setHighlightedCells(winningCells(result));
+    setHighlightedPaths(winningPaths(result));
     setLastReplayId(replayId(result));
     setPhase('spinning');
     finishPresentation(nextPhase);
@@ -201,17 +216,18 @@ export function App() {
       bonusAutoplayTimer.current = undefined;
     }
     if (!bonusAutoplay || phase !== 'bonus' || session.phase !== 'bonus') return;
+    const autoplayGap = lastWin > 0 ? BONUS_AUTOPLAY_WIN_GAP_MS : BONUS_AUTOPLAY_GAP_MS;
     bonusAutoplayTimer.current = window.setTimeout(() => {
       bonusAutoplayTimer.current = undefined;
       handleSpin();
-    }, BONUS_AUTOPLAY_GAP_MS);
+    }, autoplayGap);
     return () => {
       if (bonusAutoplayTimer.current !== undefined) {
         window.clearTimeout(bonusAutoplayTimer.current);
         bonusAutoplayTimer.current = undefined;
       }
     };
-  }, [bonusAutoplay, handleSpin, phase, session.phase]);
+  }, [bonusAutoplay, handleSpin, lastWin, phase, session.phase]);
 
   const resetSession = useCallback((nextSeed = seed) => {
     if (presentationTimer.current !== undefined) window.clearTimeout(presentationTimer.current);
@@ -223,6 +239,7 @@ export function App() {
     setGrid(initialGrid());
     setLastReplayId(undefined);
     setHighlightedCells([]);
+    setHighlightedPaths([]);
     setForcedFixture(false);
     setPhase('ready');
   }, [seed, session.wager]);
@@ -248,6 +265,7 @@ export function App() {
     setLastWin(0);
     setLastReplayId(`DEV-FORCED-${cores}-CORE`);
     setHighlightedCells([]);
+    setHighlightedPaths([]);
     setForcedFixture(true);
     setPhase('bonus-choice');
   }, [phase, session]);
@@ -281,6 +299,7 @@ export function App() {
       bonus={bonus}
       bonusAutoplay={bonusAutoplay}
       winningCells={highlightedCells}
+      winningPaths={highlightedPaths}
       simulation={simulation}
       simulationRunning={simulationRunning}
       reducedMotion={reducedMotion}

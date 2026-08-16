@@ -71,7 +71,7 @@ See the [documentation index](docs/README.md), [architecture](docs/architecture.
 
 ## Visual and audio status
 
-The production visual and motion slice is implemented. The game uses original generated runtime artwork for all eleven reel symbols and the Pelagos Relay environment. It also presents committed results with staggered reel settling, exact winning-cell highlights, CORE activation, distinct Alpha/Bravo atmosphere, automatic feature spins with Pause/Resume, accessible result feedback, and a stable reduced-motion path. Production audio remains future work.
+The production visual and motion slice is implemented. The game uses original generated runtime artwork for all eleven reel symbols and the Pelagos Relay environment. It also presents committed results with staggered reel settling, exact animated payline traces, non-winning-symbol dimming, a large confirmed virtual-credit total, full symbol names in an accessible win ledger, CORE activation, distinct Alpha/Bravo atmosphere, automatic feature spins with Pause/Resume, and a stable reduced-motion path. Ordinary reel art remains free of weak abbreviation overlays; only the functional `CORE` and `WILD` marks are retained. Production audio remains future work.
 
 Every runtime image has a public brief, sanitized prompt record, technical-preparation notes, and an approved provenance entry under [`docs/assets/`](docs/assets/). Future assets must follow the same [art direction](docs/art-direction.md), provenance rules, and public-repository license policy.
 

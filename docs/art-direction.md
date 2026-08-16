@@ -4,7 +4,7 @@
 
 This document defines the visual and sound direction for Defuse Protocol, a free, educational slot-machine simulator using virtual credits. It is the shared brief for implementation, asset creation, and review. It does not authorize real-money gambling features or use of third-party intellectual property.
 
-The playable prototype combines original procedural fallbacks with an approved production visual and motion slice. Generated and reviewed runtime artwork covers the complete eleven-symbol family and the Pelagos Relay environment. Staggered reel settling, winning-cell emphasis, CORE activation, route atmosphere, bonus autoplay, and accessible result feedback are implemented. Production audio remains future work subject to the asset-provenance policy.
+The playable prototype combines original procedural fallbacks with an approved production visual and motion slice. Generated and reviewed runtime artwork covers the complete eleven-symbol family and the Pelagos Relay environment. Staggered reel settling, exact payline traces, a large confirmed-win total, full-name line feedback, CORE activation, route atmosphere, bonus autoplay, and accessible result feedback are implemented. Production audio remains future work subject to the asset-provenance policy.
 
 Defuse Protocol must feel like an original, realistic, gritty tactical operation at an invented industrial site. Familiarity comes from the broad visual grammar of classic competitive tactical games: strong silhouettes, practical contemporary equipment, sun-worn masonry, restrained field-console UI, and fast amber-versus-neutral state reading. It must never imitate Counter-Strike or any particular game, map, character, composition, interface, military organization, or weapon manufacturer.
 
@@ -91,7 +91,7 @@ UI combines a robust field console with a premium casino-game clarity. It is not
 - **Panels:** dark olive-graphite slabs, neutral metal edges, an amber active indicator, restrained rounding (2–4 px), and calm spacing.
 - **Controls:** one visually dominant primary Spin control; secondary controls remain quiet. Buttons use clear labels in addition to iconography.
 - **Data:** use tabular figures for balance, stake, win, and simulated statistics. Include `Virtual credits`, `Theoretical`, and `Observed` labels wherever applicable.
-- **Feedback:** a win begins with a frame/line highlight, then numerals and VFX; it never obscures the final symbols or pretends to influence the spin result.
+- **Feedback:** a win begins with an exact frame/line trace, then a large confirmed virtual-credit total, full-name line ledger, and grounded cabinet/background response; it never pretends to influence the spin result.
 - **No imitation:** do not use copied buy-menu layouts, radar shapes, crosshair conventions, round-result banners, weapon-skin grids, familiar map callouts, or recognizable game terminology.
 
 ## Motion, VFX, and sound
@@ -104,7 +104,7 @@ Motion should read as a heavy, reliable field instrument.
 
 - Reels use weighted deceleration, subtle mechanical settle, and a result lock that occurs only after the engine has produced the outcome. This is implemented with a 244 ms base and 47 ms per-reel stagger.
 - Ambient effects: sparse dust motes, heat haze, a subtle canvas edge movement, and occasional status-light sweep.
-- Implemented win effects: short amber edge sweep, exact winning-cell outlines, restrained landing response, and an unobtrusive textual win confirmation. Grounded particles and vapor remain optional future polish.
+- Implemented win effects: layered amber route traces, temporary non-winner dimming, restrained cabinet/background response, a large confirmed total, and a full-name line ledger. Ordinary reel art has no abbreviation overlay; only the functional `CORE` and `WILD` marks retain condensed nameplates. Grounded particles and vapor remain optional future polish.
 - Implemented feature effects: CORE activation rings, Alpha containment rails, and Bravo recovery rails. Meter needles, relay pips, and brief signal distortion remain optional future polish. Avoid holograms, explosions, gunfire, shell casings, shock imagery, or combat simulation.
 - Respect `prefers-reduced-motion`: remove camera shake, reduce particle count, halt ambient motion, and replace flashes with static outlines.
 - Do not use uncontrolled strobing. Any repeated flash must be below 3 Hz and never be the only communication of state.
