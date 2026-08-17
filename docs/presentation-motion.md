@@ -56,6 +56,14 @@ requires, every following reel keeps running for an extra 700 ms before it settl
 is cumulative, so a spin that lands both Cores on the opening reels holds reels three, four,
 and five in turn.
 
+Once the trigger is met the wait continues in a second, quieter form. A fourth and fifth Core
+raise the award from 10 to 13 to 16 Alpha spins, or 6 to 8 to 10 Bravo spins, so the remaining
+reels are held for a shorter 420 ms while that is still possible, and are released as soon as no
+further Core could add anything. This form only ever applies to a spin that has already
+triggered — roughly one in 117 — so ordinary spins keep their short presentation. It is drawn in
+gold rather than amber and its extra pass of the reel mechanism is quieter, so the louder
+treatment stays reserved for the trigger itself.
+
 The plan is derived from the committed result by `planSpinTiming` before the first frame is
 drawn, and it is shared by the phase timer, the renderer, and the audio cue plan so all three
 agree on when each reel lands. Anticipation changes only how long a reel is displayed running:
