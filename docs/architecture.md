@@ -120,6 +120,26 @@ A completed simulation response contains observed aggregate statistics, requeste
 
 The prototype uses one worker. Parallel workers may be introduced later only with a documented stream-partitioning strategy that preserves reproducibility.
 
+### Browser-local play record
+
+`src/presentation/play-record.ts` keeps a running total of ordinary play: paid spins, credits
+staked, credits returned, features entered, and the largest single return. `App` folds each
+committed result into it and writes it to `localStorage`.
+
+Three properties are deliberate:
+
+- **It is local.** The record lives in one browser. It is never transmitted, never shared
+  between visitors or devices, and there is no server to aggregate it. A figure covering every
+  player would need a backend, which this static deployment does not have.
+- **It resets per build.** The record is keyed on a build identifier stamped into the bundle by
+  Vite, so a new deployment starts from zero instead of mixing figures across game versions.
+- **It excludes forced results.** Developer-generated results consume no randomness and are
+  excluded from simulation, so counting them would misreport the observed return.
+
+The reducer is pure and unit tested; the React layer only supplies committed results and
+persists the output. Observed return is presented next to the theoretical figure and labelled as
+a finite sample, in line with the product rule that separates theoretical from observed values.
+
 ### Cheat boundary
 
 The UI imports `createDeveloperCheatBonus` from the isolated `dev-tools` module. The factory creates a marked 3-, 4-, or 5-CORE bonus offer without consuming RNG. It is intentionally absent from the public engine index, ordinary spin generation, and simulation.

@@ -7,6 +7,7 @@ import {
 } from '../renderer/ReelCanvas';
 import type { AudioPreviewCue, AudioSettings, AudioStatus } from '../audio/types';
 import type { SpinTiming } from '../presentation/spin-timing';
+import { playRecordNet, playRecordRtp, type PlayRecord } from '../presentation/play-record';
 import { classifyWin } from '../presentation/win-tier';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { WinCelebration } from './WinCelebration';
@@ -76,6 +77,8 @@ export interface PrototypeProps {
   bonusAutoplay?: boolean;
   /** True when the remaining virtual-credit balance cannot cover the current wager. */
   insufficientCredits?: boolean;
+  /** Browser-local running record of ordinary play. Never shared between visitors. */
+  playRecord?: PlayRecord;
   simulation?: PrototypeStatistics;
   /** True while the parent-owned worker is processing a simulation request. */
   simulationRunning?: boolean;
@@ -316,6 +319,14 @@ export function Prototype(props: PrototypeProps) {
 
       <section className={cabinetClassName} aria-label="Defuse Protocol slot simulator" aria-busy={props.phase === 'spinning'} aria-describedby="dp-result-feedback">
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
+        <div
+          className={`dp-win-total dp-win-total--${hasPresentedWin ? winPresentation.tier : 'idle'}`}
+          aria-hidden="true"
+        >
+          <span>{hasPresentedWin ? winPresentation.headline : 'Return'}</span>
+          <strong>{hasPresentedWin ? `+${formatCredits(countedWin)}` : '—'}</strong>
+          <small>VC</small>
+        </div>
         <div className="dp-reel-frame">
           <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={sceneRoute} winTier={winPresentation.tier} spinTiming={props.spinTiming} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
           {hasPresentedWin && <WinCelebration payout={props.lastWin} presentation={winPresentation} replayId={props.replayId} reducedMotion={props.reducedMotion} />}
@@ -346,13 +357,6 @@ export function Prototype(props: PrototypeProps) {
           </button>
           <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed} disabled={choosingRoute}>New seed</button></div>
         </div>
-        {hasPresentedWin && (
-          <div className={`dp-win-total dp-win-total--${winPresentation.tier}`} aria-hidden="true">
-            <span>{winPresentation.headline}</span>
-            <strong>+{formatCredits(countedWin)}</strong>
-            <small>VC</small>
-          </div>
-        )}
         <section
           key={`${props.phase}-${props.replayId ?? props.seed}-${props.lastWin}`}
           id="dp-result-feedback"
@@ -370,13 +374,14 @@ export function Prototype(props: PrototypeProps) {
       </section>
 
       <section className="dp-provenance" aria-label="Result provenance"><span>Configuration: <code>{props.configId ?? 'pending configuration'}</code></span><span>Seeded results can be replayed.</span><button type="button" onClick={props.onResetSession}>Reset virtual-credit session</button></section>
+      <PlayRecordSummary record={props.playRecord} />
       {props.devCheatsEnabled && (
         <Suspense fallback={null}>
           <DevCheats open={cheatOpen} setOpen={setCheatOpen} onForceBonus={props.onForceBonus} onReset={props.onResetSession} />
         </Suspense>
       )}
       {choosingRoute && <div className="dp-bonus-lock" aria-hidden="true" />}
-      {labOpen && <LabPanel statistics={props.simulation} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
+      {labOpen && <LabPanel statistics={props.simulation} playRecord={props.playRecord} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
       {audioOpen && <AudioPanel settings={props.audioSettings} status={props.audioStatus} onUpdate={props.onUpdateAudio} onPreview={props.onPreviewAudio} onClose={() => setAudioOpen(false)} />}
       {diagnosticsOpen && <DiagnosticsPanel onClose={() => setDiagnosticsOpen(false)} />}
@@ -505,9 +510,55 @@ function BonusChoice({ onChoose, reducedMotion }: { onChoose: (route: BonusRoute
   );
 }
 
-function LabPanel({ statistics, running = false, onRun, onClose }: { statistics?: PrototypeStatistics; running?: boolean; onRun: PrototypeProps['onRunSimulation']; onClose: () => void }) {
+function formatSigned(value: number) {
+  return `${value < 0 ? '−' : '+'}${formatCredits(Math.abs(value))}`;
+}
+
+/**
+ * One-line browser-local summary. It is deliberately outside the result provenance region:
+ * it describes this browser's accumulated play, not the provenance of a committed result.
+ */
+function PlayRecordSummary({ record }: { record?: PlayRecord }) {
+  if (!record || record.paidSpins === 0) return null;
+  const net = playRecordNet(record);
+  return (
+    <section className={`dp-play-record-line dp-play-record-line--${net < 0 ? 'down' : 'up'}`} aria-label="Play record in this browser">
+      <span>This browser only</span>
+      <b>{formatSigned(net)} VC</b>
+      <span>over {formatCredits(record.paidSpins)} paid {record.paidSpins === 1 ? 'spin' : 'spins'} · not shared between visitors</span>
+    </section>
+  );
+}
+
+function PlayRecordPanel({ record }: { record?: PlayRecord }) {
+  if (!record || record.paidSpins === 0) {
+    return <div className="dp-empty">No paid spins recorded in this browser yet. The record starts once you spin.</div>;
+  }
+  const net = playRecordNet(record);
+  const rtp = playRecordRtp(record);
+  return (
+    <>
+      <dl className="dp-lab-stats">
+        <Stat label="Paid spins" value={formatCredits(record.paidSpins)} />
+        <Stat label="Total staked" value={`${formatCredits(record.wagered)} VC`} tone="amber" />
+        <Stat label="Total returned" value={`${formatCredits(record.returned)} VC`} tone="cyan" />
+        <Stat label={net < 0 ? 'Net down' : 'Net up'} value={`${formatSigned(net)} VC`} tone={net < 0 ? 'amber' : 'cyan'} />
+        <Stat label="Observed return" value={rtp === undefined ? 'Not observed' : percent(rtp)} />
+        <Stat label="Largest single return" value={`${formatCredits(record.biggestWin)} VC`} />
+      </dl>
+      <p className="dp-provenance-text">
+        Features entered: {formatCredits(record.featuresEntered)} · recorded since {new Date(record.startedAt).toLocaleString()}.
+        This record is stored in this browser only. It is never sent anywhere, is not shared with other
+        visitors or devices, and resets when a new build is deployed. Forced developer results are excluded.
+        A short run says nothing about the declared long-run return.
+      </p>
+    </>
+  );
+}
+
+function LabPanel({ statistics, playRecord, running = false, onRun, onClose }: { statistics?: PrototypeStatistics; playRecord?: PlayRecord; running?: boolean; onRun: PrototypeProps['onRunSimulation']; onClose: () => void }) {
   const [route, setRoute] = useState<BonusRoute>(statistics?.route ?? 'alpha');
-  return <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="lab-title"><section className="dp-dialog dp-lab"><button className="dp-close" type="button" aria-label="Close laboratory" onClick={onClose}>×</button><p className="dp-kicker">Transparent mathematics</p><h2 id="lab-title">Simulation laboratory</h2><p>Observed figures come from a finite seeded run; they are not a promise of a session result.</p><fieldset className="dp-route-picker" disabled={running}><legend>Feature route to simulate</legend><label><input type="radio" name="simulation-route" checked={route === 'alpha'} onChange={() => setRoute('alpha')} /> Relay Alpha <span>Steadier containment charges</span></label><label><input type="radio" name="simulation-route" checked={route === 'bravo'} onChange={() => setRoute('bravo')} /> Relay Bravo <span>Higher-risk multiplier recovery</span></label></fieldset><div className="dp-sim-buttons"><button type="button" disabled={running} onClick={() => onRun(10_000, route)}>{running ? 'Simulation running…' : 'Run 10,000 spins'}</button><button type="button" disabled={running} onClick={() => onRun(100_000, route)}>Run 100,000 spins</button></div>{running && <p className="dp-running-status" role="status">Simulation worker is running {route === 'alpha' ? 'Relay Alpha' : 'Relay Bravo'}.</p>}{statistics ? <><dl className="dp-lab-stats"><Stat label="Observed RTP" value={percent(statistics.observedRtp)} tone="amber" /><Stat label="Any-pay hit rate" value={percent(statistics.anyPayHitRate)} /><Stat label="Profitable hit rate" value={percent(statistics.profitableHitRate)} /><Stat label="Bonus frequency" value={statistics.bonusFrequency ? `1 in ${(1 / statistics.bonusFrequency).toFixed(1)}` : 'Not observed'} /><Stat label="Maximum win" value={`${statistics.maxWinMultiplier.toFixed(1)}×`} tone="cyan" /><Stat label="Completed samples" value={formatCredits(statistics.sampleSize)} /></dl><p className="dp-provenance-text">{statistics.completed === false ? 'Partial run. ' : ''}{statistics.route === 'alpha' ? 'Relay Alpha' : 'Relay Bravo'} · seed <code>{statistics.seed}</code> · configuration <code>{statistics.configId}</code></p></> : <div className="dp-empty">Run a seeded route simulation to inspect observed results and provenance.</div>}</section></div>;
+  return <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="lab-title"><section className="dp-dialog dp-lab"><button className="dp-close" type="button" aria-label="Close laboratory" onClick={onClose}>×</button><p className="dp-kicker">Transparent mathematics</p><h2 id="lab-title">Simulation laboratory</h2><p>Observed figures come from a finite seeded run; they are not a promise of a session result.</p><section className="dp-play-record"><h3>Your play record in this browser</h3><PlayRecordPanel record={playRecord} /></section><fieldset className="dp-route-picker" disabled={running}><legend>Feature route to simulate</legend><label><input type="radio" name="simulation-route" checked={route === 'alpha'} onChange={() => setRoute('alpha')} /> Relay Alpha <span>Steadier containment charges</span></label><label><input type="radio" name="simulation-route" checked={route === 'bravo'} onChange={() => setRoute('bravo')} /> Relay Bravo <span>Higher-risk multiplier recovery</span></label></fieldset><div className="dp-sim-buttons"><button type="button" disabled={running} onClick={() => onRun(10_000, route)}>{running ? 'Simulation running…' : 'Run 10,000 spins'}</button><button type="button" disabled={running} onClick={() => onRun(100_000, route)}>Run 100,000 spins</button></div>{running && <p className="dp-running-status" role="status">Simulation worker is running {route === 'alpha' ? 'Relay Alpha' : 'Relay Bravo'}.</p>}{statistics ? <><dl className="dp-lab-stats"><Stat label="Observed RTP" value={percent(statistics.observedRtp)} tone="amber" /><Stat label="Any-pay hit rate" value={percent(statistics.anyPayHitRate)} /><Stat label="Profitable hit rate" value={percent(statistics.profitableHitRate)} /><Stat label="Bonus frequency" value={statistics.bonusFrequency ? `1 in ${(1 / statistics.bonusFrequency).toFixed(1)}` : 'Not observed'} /><Stat label="Maximum win" value={`${statistics.maxWinMultiplier.toFixed(1)}×`} tone="cyan" /><Stat label="Completed samples" value={formatCredits(statistics.sampleSize)} /></dl><p className="dp-provenance-text">{statistics.completed === false ? 'Partial run. ' : ''}{statistics.route === 'alpha' ? 'Relay Alpha' : 'Relay Bravo'} · seed <code>{statistics.seed}</code> · configuration <code>{statistics.configId}</code></p></> : <div className="dp-empty">Run a seeded route simulation to inspect observed results and provenance.</div>}</section></div>;
 }
 
 function HelpPanel({ onClose }: { onClose: () => void }) {

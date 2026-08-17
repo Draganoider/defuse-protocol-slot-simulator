@@ -184,6 +184,21 @@ the same board geometry as the symbols under it. The sequencing decision moved i
 presentation cap, sequence completion, and the reduced-motion hold. Captured frames confirm one
 aligned trace with contact marks on the paying cells and a clean clear after the sequence.
 
+## Play record and confirmed-total placement QA
+
+The browser-local play record is covered by unit tests for accumulation, free feature spins
+counting as return without a new stake, negative net, exclusion of developer-forced results,
+rejection of a record from another build, and rejection of malformed stored values. A browser
+flow verifies that the summary appears only after a paid spin, states that it is this browser
+only, survives a reload, and matches the Lab totals. Live review of sixteen paid spins showed
+320 staked, 87 returned, a net of −233, and an observed return of 27.19 percent against the
+declared long-run figure, presented with the finite-sample caveat.
+
+The confirmed total moved above the reels so it is read before the reels themselves. Its slot is
+always mounted at a fixed height, so a Playwright check confirms the slot keeps the same height
+between its idle and winning states and that the Spin control does not move across a winning
+spin.
+
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively

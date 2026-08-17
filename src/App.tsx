@@ -33,6 +33,15 @@ import { useGameAudio } from './audio/useGameAudio';
 import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
 import { classifyWin } from './presentation/win-tier';
 import { DEFAULT_PRESENTATION_MS, planSpinTiming, type SpinTiming } from './presentation/spin-timing';
+import {
+  createPlayRecord,
+  parsePlayRecord,
+  PLAY_RECORD_STORAGE_KEY,
+  recordSpin,
+  type PlayRecord,
+  type RecordedSpin,
+} from './presentation/play-record';
+import { BUILD_ID } from './build-id';
 
 const STARTING_BALANCE = 2_000;
 const BONUS_AUTOPLAY_GAP_MS = 650;
@@ -65,6 +74,25 @@ function readQaToolsFlag(): boolean {
   } catch {
     // Blocked storage must never prevent the game from loading.
     return false;
+  }
+}
+
+function loadPlayRecord(): PlayRecord {
+  if (typeof window === 'undefined') return createPlayRecord(BUILD_ID);
+  try {
+    const stored = window.localStorage.getItem(PLAY_RECORD_STORAGE_KEY);
+    return (stored ? parsePlayRecord(JSON.parse(stored), BUILD_ID) : undefined) ?? createPlayRecord(BUILD_ID);
+  } catch {
+    // A blocked or corrupt store must never prevent play.
+    return createPlayRecord(BUILD_ID);
+  }
+}
+
+function savePlayRecord(record: PlayRecord): void {
+  try {
+    window.localStorage.setItem(PLAY_RECORD_STORAGE_KEY, JSON.stringify(record));
+  } catch {
+    // The record is best effort and never blocks a spin.
   }
 }
 
@@ -191,6 +219,7 @@ export function App() {
   const [environmentRoute, setEnvironmentRoute] = useState<BonusRoute>();
   const [featureSummary, setFeatureSummary] = useState<PrototypeFeatureSummary>();
   const [spinTiming, setSpinTiming] = useState<SpinTiming>();
+  const [playRecord, setPlayRecord] = useState<PlayRecord>(loadPlayRecord);
   const presentationTimer = useRef<number | undefined>(undefined);
   const bonusAutoplayTimer = useRef<number | undefined>(undefined);
   const simulationWorker = useRef<Worker | undefined>(undefined);
@@ -234,6 +263,14 @@ export function App() {
       if (bonusAutoplayTimer.current !== undefined) window.clearTimeout(bonusAutoplayTimer.current);
       worker.terminate();
     };
+  }, []);
+
+  const trackSpin = useCallback((spin: RecordedSpin) => {
+    setPlayRecord((current) => {
+      const next = recordSpin(current, spin);
+      if (next !== current) savePlayRecord(next);
+      return next;
+    });
   }, []);
 
   const showResult = useCallback((result: SpinResult, nextPhase: PresentationPhase) => {
@@ -287,6 +324,12 @@ export function App() {
       featureSpinsPlayed.current += 1;
       setSession(transition.session);
       setBalance((current) => current + transition.result.totalPayout);
+      trackSpin({
+        wager: transition.result.wager,
+        payout: transition.result.totalPayout,
+        paid: false,
+        developerGenerated: transition.result.developerGenerated,
+      });
       showResult(transition.result, transition.session.phase === 'bonus' ? 'bonus' : 'result');
       if (transition.session.phase !== 'bonus' && activeRoute) {
         setFeatureSummary({ route: activeRoute, totalWin: featureTotalWin.current, spinsPlayed: featureSpinsPlayed.current });
@@ -310,8 +353,15 @@ export function App() {
     setForcedFixture(false);
     setSession(transition.session);
     setBalance((current) => current - ordinarySession.wager + transition.result.totalPayout);
+    trackSpin({
+      wager: ordinarySession.wager,
+      payout: transition.result.totalPayout,
+      paid: true,
+      enteredFeature: Boolean(transition.result.bonusOffer),
+      developerGenerated: transition.result.developerGenerated,
+    });
     showResult(transition.result, transition.session.phase === 'bonus-choice' ? 'bonus-choice' : 'result');
-  }, [balance, finishFeatureAudio, phase, session, showResult]);
+  }, [balance, finishFeatureAudio, phase, session, showResult, trackSpin]);
 
   const handleChooseBonus = useCallback((route: BonusRoute) => {
     if (session.phase !== 'bonus-choice') return;
@@ -440,6 +490,7 @@ export function App() {
       featureSummary={featureSummary}
       bonusAutoplay={bonusAutoplay}
       insufficientCredits={session.phase === 'base' && balance < session.wager}
+      playRecord={playRecord}
       winningCells={highlightedCells}
       winningPaths={highlightedPaths}
       spinTiming={spinTiming}

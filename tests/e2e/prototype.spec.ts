@@ -545,6 +545,76 @@ test('the forced-feature menu stays hidden until the QA flag is requested', asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test('the confirmed total sits above the reels and never moves the controls', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const total = page.locator('.dp-win-total');
+  const reels = page.locator('.dp-reel-frame');
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+
+  // The slot is always mounted, above the reels, and reads as idle before any result.
+  await expect(total).toBeVisible();
+  await expect(total.locator('strong')).toHaveText('—');
+  const idle = await total.boundingBox();
+  const reelBox = await reels.boundingBox();
+  expect(idle!.y + idle!.height).toBeLessThanOrEqual(reelBox!.y + 1);
+  const spinBefore = await spin.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+
+  let foundWin = false;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    if (await page.locator('.dp-win-ledger').count()) {
+      foundWin = true;
+      break;
+    }
+  }
+  expect(foundWin).toBe(true);
+
+  await expect(total.locator('strong')).toContainText(/^\+[\d,]+$/);
+  const won = await total.boundingBox();
+  expect(Math.round(won!.height)).toBe(Math.round(idle!.height));
+  const spinAfter = await spin.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+  expect(spinAfter).toBe(spinBefore);
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('the play record accumulates locally and is labelled as browser-only', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const summary = page.getByRole('region', { name: 'Play record in this browser' });
+  await expect(summary).toHaveCount(0);
+
+  const spin = page.getByRole('button', { name: 'Spin', exact: true });
+  for (let index = 0; index < 4; index += 1) {
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    // The 180 ms entry gate rejects a click that lands too soon after an accepted spin,
+    // so space them out rather than assuming every click becomes a spin.
+    await page.waitForTimeout(220);
+  }
+  await expect(summary).toContainText('4 paid spins');
+  await expect(summary).toContainText('not shared between visitors');
+
+  // It survives a reload, because the point is a record across sessions on this device.
+  await page.reload();
+  await expect(summary).toContainText('4 paid spins');
+
+  await page.getByRole('button', { name: 'Lab', exact: true }).click();
+  const lab = page.getByRole('dialog', { name: 'Simulation laboratory' });
+  await expect(lab.getByText('Your play record in this browser')).toBeVisible();
+  await expect(lab.getByText('stored in this browser only')).toBeVisible();
+  const staked = await lab.locator('.dp-stat', { hasText: 'Total staked' }).locator('dd').innerText();
+  expect(staked).toBe('80 VC');
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 test('sustained play keeps the renderer heap bounded', async ({ page }) => {
   test.slow();
   const runtimeErrors = collectRuntimeErrors(page);

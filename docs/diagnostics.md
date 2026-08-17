@@ -9,6 +9,7 @@ A complete Chromium renderer-process crash cannot run JavaScript at the instant 
 ## Storage and controls
 
 - Storage key: `defuse-protocol:diagnostics:v1`
+- Related local key: `defuse-protocol:play-record:v1` holds the browser-local play record described in the [architecture](architecture.md). It contains counters only, is never transmitted, is not shared between visitors or devices, and is discarded when the build identifier changes.
 - Capacity: latest 240 events
 - Location: browser local storage on the current device
 - Remote service: none
