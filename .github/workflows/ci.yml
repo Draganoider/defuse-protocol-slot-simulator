@@ -3,7 +3,9 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    # `test` is the working branch and `main` is what deploys, so both are verified on
+    # every push. Without this, work is only checked at the moment it is merged.
+    branches: [main, test]
 
 permissions:
   contents: read
