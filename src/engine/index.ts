@@ -4,6 +4,6 @@ export { evaluateGrid, expandWildReels } from './evaluate';
 export { PAYLINES_20 } from './paylines';
 export { buildGrid, selectStops } from './reels';
 export { createRng, normalizeSeed, type DeterministicRng } from './rng';
-export { chooseBonusRoute, createSession, spinBase, spinBonus, type CreateSessionOptions } from './session';
+export { buyFeature, chooseBonusRoute, createSession, featureBuyCost, spinBase, spinBonus, type CreateSessionOptions, type FeatureBuyTransition } from './session';
 export { runSimulation } from './simulator';
 export * from './types';

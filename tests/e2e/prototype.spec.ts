@@ -628,6 +628,36 @@ test('a payout stays hidden until the reels finish settling', async ({ page }) =
   expect(runtimeErrors).toEqual([]);
 });
 
+test('a bought route is confirmed, priced, and gated by the balance', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openPrototype(page);
+
+  const buy = page.getByRole('button', { name: 'Buy feature' });
+  await expect(buy).toBeEnabled();
+  await buy.click();
+
+  const dialog = page.getByRole('dialog', { name: 'Buy a relay route' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Virtual credits only');
+  // 83x and 79x the 20 credit wager.
+  const alpha = dialog.getByRole('button', { name: /Relay Alpha/ });
+  const bravo = dialog.getByRole('button', { name: /Relay Bravo/ });
+  await expect(alpha).toContainText('1,660 VC');
+  await expect(alpha).toContainText('83× wager');
+  await expect(bravo).toContainText('1,580 VC');
+
+  await bravo.click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Relay Bravo status' })).toBeVisible();
+  await expect(page.locator('.dp-stat dd').first()).toHaveText('420 VC');
+
+  // Once the balance cannot cover the cheapest route the control is disabled outright.
+  await expect(page.getByRole('button', { name: 'Buy feature' })).toBeDisabled();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 test('the play record accumulates locally and is labelled as browser-only', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });

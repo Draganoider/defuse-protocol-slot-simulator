@@ -117,6 +117,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     alphaChargesPerSecuredReel: 3,
     bravoMultiplierSteps: [1, 2, 3, 5],
     bravoMaxShields: 3,
+    featureBuyCostByRoute: { alpha: 83, bravo: 79 },
+    featureBuyScatterCount: 3,
   },
 };
 
@@ -244,6 +246,15 @@ export function validateConfig(config: GameConfig): ValidationResult {
 
   const bonus = config.bonus;
   if (bonus.triggerScatters !== 3 || bonus.retriggerScatters !== 3) issue('INVALID_TRIGGER', 'bonus', 'This math version requires three CORE symbols to trigger and retrigger.');
+  for (const route of ['alpha', 'bravo'] as const) {
+    const cost = bonus.featureBuyCostByRoute?.[route];
+    if (!Number.isSafeInteger(cost) || cost <= 0) {
+      issue('INVALID_FEATURE_BUY_COST', `bonus.featureBuyCostByRoute.${route}`, 'A feature-buy cost must be a positive safe integer multiple of the wager.');
+    }
+  }
+  if (![3, 4, 5].includes(bonus.featureBuyScatterCount)) {
+    issue('INVALID_FEATURE_BUY_SCATTERS', 'bonus.featureBuyScatterCount', 'A purchased entry must award a declared 3, 4, or 5 CORE result.');
+  }
   const expectedAlpha = [10, 13, 16];
   const expectedBravo = [6, 8, 10];
   ([3, 4, 5] as const).forEach((count, index) => {

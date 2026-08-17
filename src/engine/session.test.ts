@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_GAME_CONFIG, SYMBOL_IDS } from './config';
 import { createDeveloperCheatBonus } from './dev-tools';
-import { chooseBonusRoute, createSession, spinBase, spinBonus } from './session';
+import { buyFeature, chooseBonusRoute, createSession, featureBuyCost, spinBase, spinBonus } from './session';
 import { constantStrips, makeConfig, NO_WIN_STRIPS, scatterStrips } from './test-fixtures';
 import type { BonusRoute, BonusState, GameConfig, GameSession } from './types';
 
@@ -157,5 +157,56 @@ describe('Relay Bravo', () => {
     expect(transition.result.totalPayout).toBeGreaterThan(0);
     expect(transition.result.bonusEvent).toMatchObject({ shieldGranted: true, shieldConsumed: false, multiplierAfter: 2 });
     expect(transition.session.bonusState?.bravoShields).toBe(1);
+  });
+});
+
+describe('virtual-credit feature buy', () => {
+  const session = createSession({ seed: 'feature-buy' });
+
+  it('prices each route as a whole multiple of the total wager', () => {
+    expect(featureBuyCost(session, 'alpha')).toBe(session.wager * 83);
+    expect(featureBuyCost(session, 'bravo')).toBe(session.wager * 79);
+    const raised = { ...session, wager: session.wager * 5 };
+    expect(featureBuyCost(raised, 'alpha')).toBe(raised.wager * 83);
+  });
+
+  it('opens the chosen route without consuming randomness', () => {
+    const bought = buyFeature(session, 'alpha', 100_000);
+    expect(bought.session.phase).toBe('bonus');
+    expect(bought.session.bonusState?.route).toBe('alpha');
+    expect(bought.spinsAwarded).toBe(10);
+    // A seeded session stays exactly where it was, so replay is unaffected by a purchase.
+    expect(bought.session.rng).toEqual(session.rng);
+  });
+
+  it('marks a purchased entry so it is never counted as ordinary play', () => {
+    expect(buyFeature(session, 'bravo', 100_000).session.bonusState?.entry).toBe('purchased');
+    const triggered = chooseBonusRoute(
+      { ...session, phase: 'bonus-choice', pendingBonus: { source: 'generated', scatterCount: 3, alphaSpins: 10, bravoSpins: 6 } },
+      'bravo',
+    );
+    expect(triggered.bonusState?.entry).toBe('triggered');
+  });
+
+  it('refuses a purchase the balance cannot cover', () => {
+    expect(() => buyFeature(session, 'alpha', featureBuyCost(session, 'alpha') - 1)).toThrow(/does not cover/);
+    expect(() => buyFeature(session, 'alpha', Number.NaN)).toThrow(/does not cover/);
+    expect(() => buyFeature(session, 'alpha', featureBuyCost(session, 'alpha'))).not.toThrow();
+  });
+
+  it('refuses a purchase outside the base phase', () => {
+    const inFeature = buyFeature(session, 'alpha', 100_000).session;
+    expect(() => buyFeature(inFeature, 'alpha', 100_000)).toThrow(/base phase/);
+  });
+
+  it('plays a purchased feature to completion like a triggered one', () => {
+    let current = buyFeature(session, 'alpha', 100_000).session;
+    let spins = 0;
+    while (current.phase === 'bonus') {
+      current = spinBonus(current).session;
+      spins += 1;
+    }
+    expect(spins).toBeGreaterThanOrEqual(10);
+    expect(current.phase).toBe('base');
   });
 });

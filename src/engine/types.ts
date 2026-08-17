@@ -29,6 +29,14 @@ export interface BonusRules {
   readonly alphaChargesPerSecuredReel: number;
   readonly bravoMultiplierSteps: readonly number[];
   readonly bravoMaxShields: number;
+  /**
+   * Cost of entering a route directly, as a multiple of the total wager. Priced per route
+   * because the player chooses the route before paying; a single price based on the weaker
+   * route would make the purchase a positive-expectation option.
+   */
+  readonly featureBuyCostByRoute: Readonly<Record<BonusRoute, number>>;
+  /** Scatter count a purchased entry is awarded as. */
+  readonly featureBuyScatterCount: 3 | 4 | 5;
 }
 
 export interface GameConfig {
@@ -110,6 +118,8 @@ export interface BonusOffer {
 
 export interface BonusState {
   readonly route: BonusRoute;
+  /** How the feature was entered. Purchased entries are reported separately from play. */
+  readonly entry: 'triggered' | 'purchased';
   readonly spinsRemaining: number;
   readonly totalAwarded: number;
   readonly totalPlayed: number;
@@ -196,18 +206,29 @@ export interface RouteSimulationStats {
   readonly averageFeaturePayout: number;
 }
 
+export type SimulationEntry = 'paid' | 'purchased';
+
 export interface SimulationRequest {
   readonly config?: GameConfig;
   readonly seed: number | string;
+  /** Paid base spins, or purchased feature entries when `entry` is `purchased`. */
   readonly paidSpins: number;
   readonly wager?: number;
   readonly route: BonusRoute;
+  /**
+   * `paid` stakes ordinary base spins. `purchased` stakes the feature-buy cost per entry
+   * and plays only the feature, so its return is reported as its own wager stream and is
+   * never mixed into base-game figures.
+   */
+  readonly entry?: SimulationEntry;
 }
 
 export interface SimulationReport {
   readonly reportVersion: '1';
   readonly status: 'complete';
   readonly statisticKind: 'observed';
+  /** Which wager stream the figures describe. */
+  readonly entry: SimulationEntry;
   readonly configId: string;
   readonly configHash: string;
   readonly engineVersion: typeof ENGINE_VERSION;

@@ -1,6 +1,6 @@
 import { assertValidConfig, assertValidWager, DEFAULT_GAME_CONFIG } from './config';
-import { chooseBonusRoute, createSession, spinBase, spinBonus } from './session';
-import { ENGINE_VERSION, type BonusRoute, type RouteSimulationStats, type SimulationReport, type SimulationRequest } from './types';
+import { buyFeature, chooseBonusRoute, createSession, spinBase, spinBonus } from './session';
+import { ENGINE_VERSION, type BonusRoute, type RouteSimulationStats, type SimulationEntry, type SimulationReport, type SimulationRequest } from './types';
 
 export function runSimulation(request: SimulationRequest): SimulationReport {
   const config = request.config ?? DEFAULT_GAME_CONFIG;
@@ -11,7 +11,11 @@ export function runSimulation(request: SimulationRequest): SimulationReport {
   if (request.route !== 'alpha' && request.route !== 'bravo') throw new Error('Simulation route must be alpha or bravo.');
   const wager = request.wager ?? config.baseWager;
   assertValidWager(config, wager);
-  const totalWagered = request.paidSpins * wager;
+  const entry: SimulationEntry = request.entry ?? 'paid';
+  const stakePerEntry = entry === 'purchased'
+    ? wager * config.bonus.featureBuyCostByRoute[request.route]
+    : wager;
+  const totalWagered = request.paidSpins * stakePerEntry;
   if (!Number.isSafeInteger(totalWagered)) throw new Error('Simulation total wager exceeds the safe integer range.');
   let session = createSession({ config, seed: request.seed, wager });
   const canonicalSeed = session.rng.seed;
@@ -27,26 +31,33 @@ export function runSimulation(request: SimulationRequest): SimulationReport {
   let returnSquaredDifferenceSum = 0;
 
   for (let paidSpin = 0; paidSpin < request.paidSpins; paidSpin += 1) {
-    const base = spinBase(session);
-    session = base.session;
-    let attributedPayout = base.result.totalPayout;
-    if (base.result.bonusOffer) {
+    let attributedPayout = 0;
+    if (entry === 'purchased') {
+      // A purchase stakes the cost and enters the route directly; no base spin is made.
       bonusEntries += 1;
-      session = chooseBonusRoute(session, request.route);
-      while (session.phase === 'bonus') {
-        const feature = spinBonus(session);
-        session = feature.session;
-        attributedPayout += feature.result.totalPayout;
-        featurePayout += feature.result.totalPayout;
-        bonusSpins += 1;
-        if (feature.result.bonusEvent?.retriggered) retriggers += 1;
+      session = buyFeature(session, request.route, Number.POSITIVE_INFINITY).session;
+    } else {
+      const base = spinBase(session);
+      session = base.session;
+      attributedPayout = base.result.totalPayout;
+      if (base.result.bonusOffer) {
+        bonusEntries += 1;
+        session = chooseBonusRoute(session, request.route);
       }
+    }
+    while (session.phase === 'bonus') {
+      const feature = spinBonus(session);
+      session = feature.session;
+      attributedPayout += feature.result.totalPayout;
+      featurePayout += feature.result.totalPayout;
+      bonusSpins += 1;
+      if (feature.result.bonusEvent?.retriggered) retriggers += 1;
     }
     totalPayout += attributedPayout;
     if (attributedPayout > 0) anyPayHits += 1;
-    if (attributedPayout > wager) profitableHits += 1;
+    if (attributedPayout > stakePerEntry) profitableHits += 1;
     if (attributedPayout > maxWin) maxWin = attributedPayout;
-    const returnMultiple = attributedPayout / wager;
+    const returnMultiple = attributedPayout / stakePerEntry;
     const delta = returnMultiple - returnMean;
     returnMean += delta / (paidSpin + 1);
     returnSquaredDifferenceSum += delta * (returnMultiple - returnMean);
@@ -81,6 +92,7 @@ export function runSimulation(request: SimulationRequest): SimulationReport {
     reportVersion: '1',
     status: 'complete',
     statisticKind: 'observed',
+    entry,
     configId: config.id,
     configHash,
     engineVersion: baseEngineVersion(),
@@ -89,7 +101,7 @@ export function runSimulation(request: SimulationRequest): SimulationReport {
     rngAlgorithm: config.rngAlgorithm,
     requestedPaidSpins: request.paidSpins,
     completedPaidSpins: request.paidSpins,
-    wager,
+    wager: stakePerEntry,
     route: request.route,
     observedRtp: stats.observedRtp,
     returnStdDev: stats.returnStdDev,

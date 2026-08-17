@@ -111,12 +111,75 @@ export function spinBase(session: GameSession): SpinTransition {
   };
 }
 
+function openBonusState(route: BonusRoute, totalAwarded: number, entry: BonusState['entry']): BonusState {
+  return {
+    route,
+    entry,
+    spinsRemaining: totalAwarded,
+    totalAwarded,
+    totalPlayed: 0,
+    retriggers: 0,
+    alphaCharges: 0,
+    alphaSecuredReels: [],
+    bravoMultiplier: 1,
+    bravoShields: 0,
+  };
+}
+
+/** Cost of entering a route directly, in virtual credits, for the session's wager. */
+export function featureBuyCost(session: GameSession, route: BonusRoute): number {
+  const multiplier = session.config.bonus.featureBuyCostByRoute[route];
+  const cost = session.wager * multiplier;
+  if (!Number.isSafeInteger(cost) || cost <= 0) throw new Error('Feature-buy cost is outside the safe integer range.');
+  return cost;
+}
+
+export interface FeatureBuyTransition {
+  readonly session: GameSession;
+  readonly cost: number;
+  readonly route: BonusRoute;
+  readonly spinsAwarded: number;
+}
+
+/**
+ * Enters a route directly for a fixed cost instead of waiting for a Signal Core trigger.
+ *
+ * No randomness is consumed: the award is fully determined by the route and the declared
+ * purchased scatter count, so the deterministic stream is left exactly where it was and a
+ * seeded session stays reproducible. The resulting bonus state records that it was
+ * purchased so a purchased feature is never counted as ordinary play.
+ */
+export function buyFeature(session: GameSession, route: BonusRoute, balance: number): FeatureBuyTransition {
+  if (session.phase !== 'base') throw new Error(`A feature can only be bought from the base phase, not ${session.phase}.`);
+  if (route !== 'alpha' && route !== 'bravo') throw new Error('A feature buy requires the alpha or bravo route.');
+  assertValidWager(session.config, session.wager);
+  const cost = featureBuyCost(session, route);
+  if (Number.isNaN(balance) || balance < cost) throw new Error('The balance does not cover the feature-buy cost.');
+  const scatters = session.config.bonus.featureBuyScatterCount;
+  const spinsAwarded = route === 'alpha'
+    ? session.config.bonus.alphaSpinsByScatters[scatters]
+    : session.config.bonus.bravoSpinsByScatters[scatters];
+  return {
+    cost,
+    route,
+    spinsAwarded,
+    session: {
+      ...session,
+      phase: 'bonus',
+      pendingBonus: undefined,
+      bonusState: openBonusState(route, spinsAwarded, 'purchased'),
+      developerCheat: false,
+    },
+  };
+}
+
 export function chooseBonusRoute(session: GameSession, route: BonusRoute): GameSession {
   if (session.phase !== 'bonus-choice' || !session.pendingBonus) throw new Error('No pending bonus is available to choose.');
   const offer = session.pendingBonus;
   const totalAwarded = route === 'alpha' ? offer.alphaSpins : offer.bravoSpins;
   const bonusState: BonusState = {
     route,
+    entry: 'triggered',
     spinsRemaining: totalAwarded,
     totalAwarded,
     totalPlayed: 0,

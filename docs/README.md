@@ -15,7 +15,7 @@ This directory is the durable source of truth for product, engineering, mathemat
 - `multi-agent-workflow.md` — agent roles, ownership, model selection, and handoff protocol
 - `public-repository-checklist.md` — licensing, safety, security, attribution, and release checks
 - `prototype-test-plan.md` — first-playable acceptance and QA scenarios
-- `feature-buy-proposal.md` — **proposed, not implemented**: virtual-credit feature buy, its pricing problem, and the reporting it would require
+- `feature-buy-proposal.md` — implemented virtual-credit feature buy: measured route prices, engine boundary, and separate reporting
 - `contributing-notes.md` — durable contributor and maintainer expectations
 - `assets/` — asset provenance schema, manifest, approved briefs, and sanitized prompt records
 - `adr/` — Architecture Decision Records for foundational choices

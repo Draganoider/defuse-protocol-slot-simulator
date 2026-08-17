@@ -79,6 +79,9 @@ export interface PrototypeProps {
   insufficientCredits?: boolean;
   /** Browser-local running record of ordinary play. Never shared between visitors. */
   playRecord?: PlayRecord;
+  /** Virtual-credit cost of entering each route directly, at the current wager. */
+  featureBuyPrices?: Readonly<Record<BonusRoute, number>>;
+  onBuyFeature?: (route: BonusRoute) => void;
   simulation?: PrototypeStatistics;
   /** True while the parent-owned worker is processing a simulation request. */
   simulationRunning?: boolean;
@@ -147,6 +150,7 @@ export function Prototype(props: PrototypeProps) {
   const [audioOpen, setAudioOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [cheatOpen, setCheatOpen] = useState(false);
+  const [buyOpen, setBuyOpen] = useState(false);
   const activeGrid = props.grid.length ? props.grid : initialGrid;
   const winningPaths = props.winningPaths ?? [];
   const sceneRoute = props.environmentRoute ?? props.bonus?.route;
@@ -170,6 +174,10 @@ export function Prototype(props: PrototypeProps) {
   // The wager must stay adjustable while credits are short, otherwise lowering it is
   // impossible and the only way to keep playing is a full session reset.
   const wagerControlsDisabled = presentationLocked || inFeature;
+  const cheapestBuy = props.featureBuyPrices
+    ? Math.min(props.featureBuyPrices.alpha, props.featureBuyPrices.bravo)
+    : Number.POSITIVE_INFINITY;
+  const buyDisabled = presentationLocked || inFeature || !props.onBuyFeature || props.balance < cheapestBuy;
   const outcomeFeedback = useMemo(() => {
     if (props.phase === 'spinning') return {
       eyebrow: 'Result locked',
@@ -355,6 +363,15 @@ export function Prototype(props: PrototypeProps) {
                   ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
                   : 'Spin'}
           </button>
+          <button
+            className="dp-buy-button"
+            type="button"
+            onClick={() => setBuyOpen(true)}
+            disabled={buyDisabled}
+            title={buyDisabled ? undefined : 'Enter a relay route immediately for virtual credits'}
+          >
+            Buy feature
+          </button>
           <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed} disabled={choosingRoute}>New seed</button></div>
         </div>
         <section
@@ -381,6 +398,15 @@ export function Prototype(props: PrototypeProps) {
         </Suspense>
       )}
       {choosingRoute && <div className="dp-bonus-lock" aria-hidden="true" />}
+      {buyOpen && props.featureBuyPrices && props.onBuyFeature && (
+        <FeatureBuyDialog
+          prices={props.featureBuyPrices}
+          balance={props.balance}
+          wager={props.totalWager}
+          onBuy={(route) => { setBuyOpen(false); props.onBuyFeature?.(route); }}
+          onClose={() => setBuyOpen(false)}
+        />
+      )}
       {labOpen && <LabPanel statistics={props.simulation} playRecord={props.playRecord} running={props.simulationRunning} onRun={props.onRunSimulation} onClose={() => setLabOpen(false)} />}
       {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
       {audioOpen && <AudioPanel settings={props.audioSettings} status={props.audioStatus} onUpdate={props.onUpdateAudio} onPreview={props.onPreviewAudio} onClose={() => setAudioOpen(false)} />}
@@ -505,6 +531,56 @@ function BonusChoice({ onChoose, reducedMotion }: { onChoose: (route: BonusRoute
           </button>
         </div>
         <p className="dp-choice-commitment">Route selection changes feature behavior only. It does not redraw the triggering result.</p>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Confirmation for the largest single stake in the game. It states the price in credits and
+ * as a multiple of the wager, and repeats that the credits are virtual, so the purchase is
+ * never one misplaced click away.
+ */
+function FeatureBuyDialog({ prices, balance, wager, onBuy, onClose }: {
+  prices: Readonly<Record<BonusRoute, number>>;
+  balance: number;
+  wager: number;
+  onBuy: (route: BonusRoute) => void;
+  onClose: () => void;
+}) {
+  const routes = [
+    { route: 'alpha' as const, name: 'Relay Alpha', detail: '10 free spins · steadier containment charges' },
+    { route: 'bravo' as const, name: 'Relay Bravo', detail: '6 free spins · higher-risk multiplier recovery' },
+  ];
+  return (
+    <div className="dp-overlay" role="dialog" aria-modal="true" aria-labelledby="feature-buy-title">
+      <section className="dp-dialog dp-feature-buy">
+        <button className="dp-close" type="button" aria-label="Close feature buy" onClick={onClose}>×</button>
+        <p className="dp-kicker">Virtual credits only</p>
+        <h2 id="feature-buy-title">Buy a relay route</h2>
+        <p>
+          Enter a route immediately instead of waiting for three Signal Cores. The price is a
+          stake of virtual credits, not a purchase: there is no money, deposit, or cash-out.
+          A bought route returns slightly less over time than reaching it in ordinary play.
+        </p>
+        <div className="dp-choice-grid">
+          {routes.map(({ route, name, detail }) => {
+            const cost = prices[route];
+            const affordable = balance >= cost;
+            return (
+              <button key={route} type="button" disabled={!affordable} onClick={() => onBuy(route)}>
+                <strong>{name}</strong>
+                <em>{formatCredits(cost)} VC · {Math.round(cost / Math.max(wager, 1))}× wager</em>
+                <span>{detail}</span>
+                <b>{affordable ? 'Balance covers this' : `Short by ${formatCredits(cost - balance)} VC`}</b>
+              </button>
+            );
+          })}
+        </div>
+        <p className="dp-choice-commitment">
+          The feature plays exactly as a triggered one, with the same variance. Purchased entries
+          are recorded separately and never counted in base-game statistics.
+        </p>
       </section>
     </div>
   );

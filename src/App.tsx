@@ -3,8 +3,10 @@ import {
   DEFAULT_GAME_CONFIG,
   PAYLINES_20,
   buildGrid,
+  buyFeature,
   chooseBonusRoute,
   createSession,
+  featureBuyCost,
   spinBase,
   spinBonus,
   type BonusRoute,
@@ -380,6 +382,34 @@ export function App() {
     showResult(transition.result, transition.session.phase === 'bonus-choice' ? 'bonus-choice' : 'result');
   }, [balance, finishFeatureAudio, phase, session, showResult]);
 
+  const featureBuyPrices = useMemo(() => ({
+    alpha: featureBuyCost(session, 'alpha'),
+    bravo: featureBuyCost(session, 'bravo'),
+  }), [session]);
+
+  const handleBuyFeature = useCallback((route: BonusRoute) => {
+    if (session.phase !== 'base' || phase === 'spinning') return;
+    const cost = featureBuyPrices[route];
+    if (balance < cost) {
+      recordDiagnosticRateLimited('feature-buy-blocked', { route, cost, balance }, 1_000);
+      return;
+    }
+    const purchase = buyFeature(session, route, balance);
+    recordDiagnostic('feature-buy', { route, cost: purchase.cost, spinsAwarded: purchase.spinsAwarded });
+    playRouteAudio(route);
+    featureTotalWin.current = 0;
+    featureSpinsPlayed.current = 0;
+    setFeatureSummary(undefined);
+    setEnvironmentRoute(route);
+    setBonusAutoplay(true);
+    lastAcceptedSpinAt.current = Number.NEGATIVE_INFINITY;
+    setBalance((current) => current - purchase.cost);
+    trackSpin({ wager: purchase.cost, payout: 0, paid: true, enteredFeature: true });
+    setSession(purchase.session);
+    setLastWin(0);
+    setPhase('bonus');
+  }, [balance, featureBuyPrices, phase, playRouteAudio, session, trackSpin]);
+
   const handleChooseBonus = useCallback((route: BonusRoute) => {
     if (session.phase !== 'bonus-choice') return;
     recordDiagnostic('bonus-route-chosen', { route });
@@ -507,6 +537,8 @@ export function App() {
       featureSummary={featureSummary}
       bonusAutoplay={bonusAutoplay}
       insufficientCredits={session.phase === 'base' && balance < session.wager}
+      featureBuyPrices={featureBuyPrices}
+      onBuyFeature={handleBuyFeature}
       playRecord={playRecord}
       winningCells={highlightedCells}
       winningPaths={highlightedPaths}

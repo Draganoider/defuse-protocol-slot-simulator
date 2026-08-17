@@ -13,6 +13,7 @@ The working prototype includes:
 - explicit circular reel strips, a declared paytable, WILD substitution, and CORE scatter entry;
 - deterministic `mulberry32-v1` randomness with canonical seeds and replay metadata;
 - Relay Alpha and Relay Bravo feature routes, automatic free spins with Pause/Resume, retriggers, and a 30-spin award cap;
+- a virtual-credit feature buy at 83x wager for Relay Alpha and 79x for Relay Bravo, priced from seeded samples so a bought route returns slightly less than reaching it in ordinary play;
 - a React application shell and PixiJS reel presentation;
 - an original Pelagos Relay environment plus production artwork for the complete eleven-symbol reel family, with procedural fallbacks for asset-loading failures;
 - an original deterministic audio library with grounded relay ambience, Alpha/Bravo feature music, mechanical reel feedback, five result tiers, feature cues, and persistent mixer controls;

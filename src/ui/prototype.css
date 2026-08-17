@@ -307,6 +307,22 @@ button:focus-visible { outline-color: #e0bd68; }
 .dp-win-ledger li b { color: #e8c771; font-size: .86rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dp-win-ledger > p { grid-column: 2; margin: 0; padding: 7px 12px; color: #aaa593; font-size: .7rem; background: #2d322b; }
 
+/* Feature buy: a deliberately quieter control than Spin, behind a confirmation. */
+.dp-buy-button {
+  padding: 9px 14px;
+  border: 1px solid #8b7040;
+  border-radius: 3px;
+  color: #e0bd68;
+  background: #2f3329;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.dp-buy-button:not(:disabled):hover { border-color: #d19a45; color: #f0d78d; }
+.dp-feature-buy .dp-choice-grid button em { color: #e8c771; font-size: .95rem; font-style: normal; font-weight: 800; }
+.dp-feature-buy .dp-choice-grid button:disabled b { color: #c98f7e; }
+
 /* Browser-local play record. */
 .dp-play-record { margin: 20px 0 0; padding-top: 16px; border-top: 1px solid #66665b; }
 .dp-play-record h3 { margin: 0 0 12px; color: #e0bd68; font-size: .95rem; }
