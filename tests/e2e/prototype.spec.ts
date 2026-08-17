@@ -32,15 +32,15 @@ async function openPrototype(page: Page, seedWords: readonly [number, number] = 
   await expect(page.getByRole('region', { name: 'Defuse Protocol slot simulator' })).toBeVisible();
 }
 
-async function forceCoreChoice(page: Page) {
+async function forceCoreChoice(page: Page, cores: 3 | 4 | 5 = 3) {
   const toggle = page.getByRole('button', { name: /^DEV CHEATS/ });
   await expect(toggle).toBeVisible();
   await toggle.click();
-  await page.getByRole('button', { name: 'Force 3 CORE' }).click();
+  await page.getByRole('button', { name: `Force ${cores} CORE` }).click();
 
   const choice = page.getByRole('dialog', { name: 'Choose a relay route' });
   await expect(choice).toBeVisible();
-  await expect(page.getByText('Replay DEV-FORCED-3-CORE')).toBeVisible();
+  await expect(page.getByText(`Replay DEV-FORCED-${cores}-CORE`)).toBeVisible();
   return choice;
 }
 
@@ -343,9 +343,12 @@ test('animated paylines advance once and clear after the win sequence', async ({
 
 for (const route of ['Alpha', 'Bravo'] as const) {
   test(`Relay ${route} autospins can pause and resume while wagers stay locked`, async ({ page }) => {
+    test.slow();
     const runtimeErrors = collectRuntimeErrors(page);
     await openPrototype(page);
-    const choice = await forceCoreChoice(page);
+    // Five Cores award the longest feature for either route, so the run cannot finish
+    // underneath the pause and resume steps on a slow machine.
+    const choice = await forceCoreChoice(page, 5);
     const decreaseWager = page.getByRole('button', { name: 'Decrease wager' });
     const increaseWager = page.getByRole('button', { name: 'Increase wager' });
 
@@ -377,10 +380,17 @@ for (const route of ['Alpha', 'Bravo'] as const) {
 
     await resumeAutospins.click();
     await expect(page.getByRole('button', { name: 'Presenting result…' })).toBeDisabled();
-    await expect(pauseAutospins).toBeEnabled();
     await expect(replayWhilePaused).not.toHaveText(pausedReplay);
-    await pauseAutospins.click();
-    await expect(resumeAutospins).toBeEnabled();
+
+    // The control cycles between presenting, pause, and resume as autoplay runs, so keep
+    // requesting a pause until one is accepted rather than racing a single click.
+    const spinControl = page.locator('.dp-spin-button');
+    // textContent, not innerText: the control is uppercased by CSS.
+    const controlLabel = () => spinControl.evaluate((element) => element.textContent?.trim() ?? '');
+    await expect.poll(async () => {
+      if (await controlLabel() === 'Pause auto spins') await spinControl.click();
+      return controlLabel();
+    }, { timeout: 30_000 }).toBe('Resume auto spins');
     await expect(featureStatus).toBeVisible();
     await expect(page.locator('#dp-result-feedback')).toContainText(/Defuse Operation active|payout confirmed/);
     await expect(decreaseWager).toBeDisabled();
