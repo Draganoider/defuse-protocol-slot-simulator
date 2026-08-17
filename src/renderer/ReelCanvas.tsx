@@ -486,7 +486,7 @@ function drawAnticipation(
   columns: number,
   elapsed: number,
 ) {
-  const firstAnticipated = timing.anticipatedReels.indexOf(true);
+  const firstAnticipated = timing.anticipation.findIndex((kind) => kind !== 'none');
   if (firstAnticipated < 1) return;
   const beginsAt = timing.reelStopMs[firstAnticipated - 1] ?? 0;
   if (elapsed < beginsAt) return;
@@ -494,8 +494,10 @@ function drawAnticipation(
   const pitch = cell + gap;
   const pulse = 0.45 + (Math.sin(elapsed / 150) + 1) * 0.24;
 
-  // Ring the scatters that brought the trigger within one Core.
-  for (let column = 0; column < firstAnticipated; column += 1) {
+  // Ring every scatter on a reel that has already landed, so the count being built on is
+  // visible whether the wait is for the trigger itself or for a larger award.
+  for (let column = 0; column < columns; column += 1) {
+    if (elapsed < (timing.reelStopMs[column] ?? Number.POSITIVE_INFINITY)) continue;
     grid.forEach((row, rowIndex) => {
       if (row[column]?.toUpperCase() !== 'CORE') return;
       const centerX = startX + gap + column * pitch + cell / 2;
@@ -506,13 +508,16 @@ function drawAnticipation(
     });
   }
 
-  const pending = timing.anticipatedReels.findIndex((anticipated, column) =>
-    anticipated && column < columns && elapsed < (timing.reelStopMs[column] ?? 0));
+  const pending = timing.anticipation.findIndex((kind, column) =>
+    kind !== 'none' && column < columns && elapsed < (timing.reelStopMs[column] ?? 0));
   if (pending < 0) return;
+  // A wait for the trigger is the louder of the two, so it gets the amber treatment.
+  const waitingForTrigger = timing.anticipation[pending] === 'trigger';
+  const tone = waitingForTrigger ? PALETTE.amber : PALETTE.gold;
   stage.addChild(new Graphics()
     .roundRect(startX + gap * 0.5 + pending * pitch, startY + gap * 0.5, cell + gap, grid.length * pitch, 3)
-    .fill({ color: PALETTE.amber, alpha: 0.05 + pulse * 0.05 })
-    .stroke({ color: PALETTE.amber, width: 2.5, alpha: pulse }));
+    .fill({ color: tone, alpha: (waitingForTrigger ? 0.05 : 0.03) + pulse * 0.05 })
+    .stroke({ color: tone, width: waitingForTrigger ? 2.5 : 2, alpha: waitingForTrigger ? pulse : pulse * 0.8 }));
 }
 
 function drawCoreCue(

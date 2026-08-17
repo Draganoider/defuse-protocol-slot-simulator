@@ -17,8 +17,8 @@ export function createSpinCuePlan(reducedMotion = false, timing?: SpinTiming): r
   const stops = reducedMotion ? undefined : timing?.reelStopMs;
   for (let reel = 0; reel < REELS; reel += 1) {
     const delayMs = stops?.[reel] ?? settleStart + settleStep * reel;
-    if (stops && timing?.anticipatedReels[reel]) {
-      plan.push({ cue: 'spin-drive', delayMs: (stops[reel - 1] ?? 0) + 40, gain: 0.52 });
+    if (stops && timing && timing.anticipation[reel] !== 'none') {
+      plan.push({ cue: 'spin-drive', delayMs: (stops[reel - 1] ?? 0) + 40, gain: timing.anticipation[reel] === 'trigger' ? 0.52 : 0.4 });
     }
     plan.push({ cue: `reel-latch-${reel + 1}` as ScheduledAudioCue['cue'], delayMs, gain: 0.76 + reel * 0.035 });
   }

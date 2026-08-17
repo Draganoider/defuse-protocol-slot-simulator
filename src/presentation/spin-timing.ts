@@ -8,14 +8,23 @@ export const REEL_STAGGER_MS = 47;
  * already committed before the first frame is drawn.
  */
 export const ANTICIPATION_HOLD_MS = 700;
+/**
+ * Shorter hold used once the feature is already won and a further scatter would only
+ * raise the award. The stake is smaller than a trigger, so the wait is shorter, and it
+ * only ever applies to the rare spins that have already triggered.
+ */
+export const AWARD_ANTICIPATION_HOLD_MS = 420;
 /** Settle time kept after the final reel lands before the next phase begins. */
 export const PRESENTATION_TAIL_MS = 88;
+
+/** Why a reel is being held, if it is. */
+export type ReelAnticipation = 'none' | 'trigger' | 'award';
 
 export interface SpinTiming {
   /** Milliseconds from presentation start at which each reel finishes settling. */
   readonly reelStopMs: readonly number[];
-  /** True for reels that hold longer because one more scatter still triggers the feature. */
-  readonly anticipatedReels: readonly boolean[];
+  /** Per reel: held for a possible trigger, for a larger award, or not held. */
+  readonly anticipation: readonly ReelAnticipation[];
   /** Complete presentation length, including the settle tail. */
   readonly presentationMs: number;
   /** True when at least one reel holds for a possible trigger. */
@@ -27,6 +36,8 @@ export interface SpinTimingOptions {
   /** Reel index of every scatter in the committed result; repeats are counted. */
   readonly scatterReelIndexes: readonly number[];
   readonly triggerScatters: number;
+  /** Highest scatter count that still increases the award. Beyond it there is no wait. */
+  readonly maxAwardScatters?: number;
 }
 
 function naturalStopMs(reel: number): number {
@@ -37,35 +48,45 @@ function naturalStopMs(reel: number): number {
 export const DEFAULT_PRESENTATION_MS = naturalStopMs(4) + PRESENTATION_TAIL_MS;
 
 /**
- * Derives reel settle times from an already committed result. A reel is anticipated when
- * the reels before it hold exactly one scatter fewer than the trigger requires, so a
- * single further scatter — anywhere ahead — would open the feature. Anticipation stops
- * once the trigger is already met, because there is no longer anything to wait for.
+ * Derives reel settle times from an already committed result.
+ *
+ * A reel is held for a `trigger` when the reels before it hold exactly one scatter fewer
+ * than the trigger requires, so a single further scatter anywhere ahead opens the feature.
+ * Once the trigger is met it is held for an `award` instead, because further scatters
+ * still raise the number of free spins granted. That second case only ever applies to a
+ * spin that has already triggered, so ordinary spins keep their short presentation.
+ *
+ * Holds are presentation only. The result, every landing position, and the award are all
+ * committed before the first frame is drawn.
  */
 export function planSpinTiming(options: SpinTimingOptions): SpinTiming {
   const reels = Math.max(0, Math.trunc(options.reels));
+  const maxAwardScatters = options.maxAwardScatters ?? reels;
   const scattersPerReel = new Array<number>(reels).fill(0);
   for (const reel of options.scatterReelIndexes) {
     if (Number.isInteger(reel) && reel >= 0 && reel < reels) scattersPerReel[reel] += 1;
   }
 
   const reelStopMs: number[] = [];
-  const anticipatedReels: boolean[] = [];
+  const anticipation: ReelAnticipation[] = [];
   let scattersLanded = 0;
   let heldMs = 0;
   for (let reel = 0; reel < reels; reel += 1) {
-    const anticipated = reel > 0
-      && options.triggerScatters > 1
-      && scattersLanded === options.triggerScatters - 1;
-    if (anticipated) heldMs += ANTICIPATION_HOLD_MS;
-    anticipatedReels.push(anticipated);
+    let kind: ReelAnticipation = 'none';
+    if (reel > 0 && options.triggerScatters > 1) {
+      if (scattersLanded === options.triggerScatters - 1) kind = 'trigger';
+      else if (scattersLanded >= options.triggerScatters && scattersLanded < maxAwardScatters) kind = 'award';
+    }
+    if (kind === 'trigger') heldMs += ANTICIPATION_HOLD_MS;
+    else if (kind === 'award') heldMs += AWARD_ANTICIPATION_HOLD_MS;
+    anticipation.push(kind);
     reelStopMs.push(naturalStopMs(reel) + heldMs);
     scattersLanded += scattersPerReel[reel];
   }
 
   return {
     reelStopMs,
-    anticipatedReels,
+    anticipation,
     presentationMs: (reelStopMs.at(-1) ?? naturalStopMs(4)) + PRESENTATION_TAIL_MS,
     hasAnticipation: heldMs > 0,
   };

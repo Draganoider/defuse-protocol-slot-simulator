@@ -49,6 +49,10 @@ const BONUS_AUTOPLAY_WIN_GAP_MS = 1_800;
 /** Extra hold after a feature win so its celebration is readable before the next spin. */
 const BONUS_AUTOPLAY_TIER_TAIL_MS = 420;
 const MIN_SPIN_ENTRY_GAP_MS = 180;
+/** Highest scatter count the award table still pays more for. */
+const MAX_AWARD_SCATTERS = Math.max(
+  ...Object.keys(DEFAULT_GAME_CONFIG.bonus.alphaSpinsByScatters).map(Number),
+);
 
 /**
  * The forced-feature menu is available in every build, including the published site, but
@@ -294,6 +298,7 @@ export function App() {
       reels: DEFAULT_GAME_CONFIG.reels,
       scatterReelIndexes: result.scatter.positions.map((position) => position.reel),
       triggerScatters: DEFAULT_GAME_CONFIG.bonus.triggerScatters,
+      maxAwardScatters: MAX_AWARD_SCATTERS,
     });
     setSpinTiming(timing);
     setGrid(transposeGrid(result.evaluatedGrid));
@@ -310,7 +315,7 @@ export function App() {
       lineWins: result.lineWins.length,
       cores: result.scatter.count,
       nextPhase,
-      anticipatedReels: timing.anticipatedReels.filter(Boolean).length,
+      anticipatedReels: timing.anticipation.filter((kind) => kind !== 'none').length,
       presentationMs: timing.presentationMs,
       rngBefore: result.replay.rngBefore.position,
       rngAfter: result.replay.rngAfter.position,
