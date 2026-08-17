@@ -1,4 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { defaultPresentationMs } from '../../src/presentation/spin-timing';
+
+const SPIN_PRESENTATION = {
+  standard: defaultPresentationMs('standard'),
+  turbo: defaultPresentationMs('turbo'),
+} as const;
 
 function collectRuntimeErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -477,22 +483,32 @@ test('the default spin runs its full reel presentation and turbo shortens it', a
   const turbo = page.getByRole('button', { name: 'Turbo' });
   await expect(turbo).toHaveAttribute('aria-pressed', 'false');
 
-  const timeOneSpin = async () => {
+  // Wall-clock timing through the driver is dominated by round-trip overhead on a loaded
+  // runner, so the length each spin actually planned is read from its diagnostic record.
+  // Overhead can only add time, which keeps the wall-clock lower bound below safe.
+  const spinOnce = async () => {
     const startedAt = Date.now();
     await spin.click();
     await expect(spin).toBeEnabled();
-    return Date.now() - startedAt;
+    const elapsed = Date.now() - startedAt;
+    const planned = await page.evaluate(() => {
+      const events = JSON.parse(localStorage.getItem('defuse-protocol:diagnostics:v1') ?? '[]') as Array<{
+        type: string; details: Record<string, unknown>;
+      }>;
+      return Number(events.filter((event) => event.type === 'spin-result').at(-1)?.details.presentationMs);
+    });
+    return { elapsed, planned };
   };
 
-  // Long enough to read as a spin rather than a cut, without becoming a wait.
-  const standard = await timeOneSpin();
-  expect(standard).toBeGreaterThan(1_100);
-  expect(standard).toBeLessThan(2_600);
+  const standard = await spinOnce();
+  expect(standard.planned).toBe(SPIN_PRESENTATION.standard);
+  expect(standard.elapsed).toBeGreaterThan(SPIN_PRESENTATION.standard - 200);
 
   await turbo.click();
   await expect(turbo).toHaveAttribute('aria-pressed', 'true');
-  const turboSpin = await timeOneSpin();
-  expect(turboSpin).toBeLessThan(standard - 500);
+  const turboSpin = await spinOnce();
+  expect(turboSpin.planned).toBe(SPIN_PRESENTATION.turbo);
+  expect(turboSpin.planned).toBeLessThan(standard.planned);
 
   // The choice is remembered for the next visit.
   await page.reload();

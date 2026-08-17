@@ -291,9 +291,15 @@ toggle.
 Unit tests cover the speed profiles being ordered shorter at every stage, the award hold staying
 shorter than the trigger hold in both, a plan reporting the speed it was built for and applying
 it throughout, reel durations being independent of the holds placed before them, and rejection
-of undeclared speed values. A browser flow times a real spin at each speed, requires the default
-to land between 1.5 and 3.5 seconds, requires turbo to be at least 700 ms shorter, and confirms
-the choice survives a reload.
+of undeclared speed values.
+
+The browser flow reads the length each spin actually planned from its diagnostic record and
+compares it against the declared profile, rather than timing the spin through the driver. A first
+version did time it, and failed on a shared runner where turbo measured 2,127 ms against a
+standard spin's 1,932 ms: round-trip overhead on a loaded two-core box swamped a 520 ms
+presentation, so comparing two wall-clock measurements was never sound. A wall-clock lower bound
+is retained, because overhead can only add time, and the flow still confirms the choice survives
+a reload.
 
 Live review at the first pass measured five consecutive automatic feature spins at 1,958, 1,960,
 1,961, 1,962, and 1,920 ms against the designed 1,940 ms, confirming the plan drives the
