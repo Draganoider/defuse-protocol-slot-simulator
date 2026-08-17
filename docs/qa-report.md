@@ -248,6 +248,25 @@ finish settling` verifies that a 244 credit return shows a 1,980 balance, a zero
 idle total, and no record line during presentation, then 2,224, 244, and a recorded paid spin
 afterwards.
 
+## Adaptive feature music QA
+
+Each route ships as a core bed and an intensity stem. A check on the rendered buffers confirms
+that `core` plus `drive` reconstructs the complete mix to within 5.6e-17, which is floating-point
+noise, so layering the stems cannot change the mix that was tuned.
+
+`featureIntensity` is unit tested for the Alpha reel-securing ramp, partial containment charges,
+the Bravo multiplier ladder, the lift into the closing spins, the full-intensity ceiling on a
+maxed final spin, the 0 to 1 bound under out-of-range state, and missing or invalid input.
+
+Live browser review confirmed the deferred fetch: no route music was requested during ordinary
+play, and entering Relay Bravo fetched only that route's two stems, 293 KB and 388 KB, which then
+started together as a single `feature-music-started` event reporting two stems. First activation
+now downloads 351 KB instead of 1,558 KB. A fresh session recorded no errors.
+
+One artefact is worth recording because it looked like a defect and was not: editing a hook in
+`useGameAudio` while a development page was live produced a React hook-order error through hot
+module replacement. A fresh load of the same code is clean.
+
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively

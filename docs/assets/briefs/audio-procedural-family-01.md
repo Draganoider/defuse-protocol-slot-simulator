@@ -3,7 +3,7 @@
 ## Identity
 
 - **Family ID:** `audio-procedural-family-01`
-- **Runtime assets:** one ambience loop, two feature-music loops, and seventeen `sfx-*` files listed in `src/assets/audio/generated-audio.json`
+- **Runtime assets:** one base-operation loop, two stems for each of the two feature routes, and seventeen `sfx-*` files listed in `src/assets/audio/generated-audio.json`
 - **Gameplay role:** Background atmosphere, route music, and non-authoritative presentation feedback for reels, results, paylines, wins, CORE events, retriggers, route selection, and feature completion
 - **Owner / creator:** Yevhen Mishchenko
 - **Created and approved:** 2026-08-16
@@ -18,7 +18,8 @@ Grounded Pelagos Relay machinery: filtered coastal wind, quiet pump cycles, elec
 ## Technical specification
 
 - 44.1 kHz Ogg Vorbis runtime delivery: q3 for the three background loops, q5 for one-shots
-- stereo ambience and music loops; mono one-shot effects
+- stereo base-operation and route-stem loops; mono one-shot effects
+- each route's stems share one length, one seed, and one gain scale so they stay in sync and sum to the complete mix
 - deterministic numeric seed per asset
 - conservative synthesized peak normalization
 - no embedded source metadata

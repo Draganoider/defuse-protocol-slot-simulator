@@ -34,8 +34,10 @@ export type AudioCue =
   | 'core-activation'
   | 'relay-alpha'
   | 'relay-bravo'
-  | 'music-alpha'
-  | 'music-bravo'
+  | 'music-alpha-core'
+  | 'music-alpha-drive'
+  | 'music-bravo-core'
+  | 'music-bravo-drive'
   | 'win-big'
   | 'win-major'
   | 'feature-retrigger'
@@ -46,7 +48,7 @@ export type AudioPreviewCue = 'spin-drive' | 'payline-trace' | 'win-medium' | 'c
 export type AudioStatus = 'locked' | 'loading' | 'ready' | 'unavailable';
 
 export interface ScheduledAudioCue {
-  readonly cue: Exclude<AudioCue, 'ambience' | 'music-alpha' | 'music-bravo'>;
+  readonly cue: Exclude<AudioCue, 'ambience' | `music-${string}`>;
   readonly delayMs: number;
   readonly gain?: number;
 }

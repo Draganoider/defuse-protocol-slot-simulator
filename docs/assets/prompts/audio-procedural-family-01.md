@@ -18,7 +18,7 @@ Each asset has an explicit numeric seed in the runtime record. Re-running the co
 - Base operation: quiet coastal wind through metalwork, pump cycles, and electrical hum, under a slow filtered pad and sub pulse in A minor at 72 BPM.
 - Reel motion: grounded lever detent, low dry roller contacts, internal weight transfer, mechanical release, and five pitch-varied magnetic latch contacts. The spin bed contains no rising electronic motor sweep and no broadband or filtered-noise layer.
 - Results: brass relay trace plus small, medium, large, big, and major harmonic confirmations.
-- Feature: Signal Core charge/lock; clean rising Alpha identity; lower mechanical Bravo identity; distinct seamless route-music loops (Alpha at 84 BPM in A minor, Bravo at 104 BPM in D minor); retrigger and completed-operation confirmations.
+- Feature: Signal Core charge/lock; clean rising Alpha identity; lower mechanical Bravo identity; distinct seamless route music delivered as a core bed plus an intensity stem (Alpha at 84 BPM in A minor, Bravo at 104 BPM in D minor); retrigger and completed-operation confirmations.
 
 ## Negative constraints
 

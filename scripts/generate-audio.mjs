@@ -128,14 +128,24 @@ const definitions = [
     render: () => renderMusicTrack('base'), quality: MUSIC_QUALITY,
   },
   {
-    id: 'music-relay-alpha-loop-01', duration: trackDuration('alpha'), seed: 0x4d414c50, stereo: true,
-    description: 'Seamless Relay Alpha loop at 84 BPM in A minor: driven bass, filtered pad, delayed pulse sequence, and restrained industrial percussion.',
-    render: () => renderMusicTrack('alpha'), quality: MUSIC_QUALITY,
+    id: 'music-relay-alpha-core-01', duration: trackDuration('alpha'), seed: 0x4d414c50, stereo: true,
+    description: 'Relay Alpha core bed at 84 BPM in A minor: driven bass, filtered pad, and room tone. Plays for the whole feature.',
+    render: () => renderMusicTrack('alpha', 'core'), quality: MUSIC_QUALITY,
   },
   {
-    id: 'music-relay-bravo-loop-01', duration: trackDuration('bravo'), seed: 0x4d425241, stereo: true,
-    description: 'Seamless Relay Bravo loop at 104 BPM in D minor: pumping bass, darker pad, sixteenth-note sequence, and insistent percussion.',
-    render: () => renderMusicTrack('bravo'), quality: MUSIC_QUALITY,
+    id: 'music-relay-alpha-drive-01', duration: trackDuration('alpha'), seed: 0x4d414c50, stereo: true,
+    description: 'Relay Alpha intensity layer: delayed pulse sequence and industrial percussion, faded in as containment charges accumulate.',
+    render: () => renderMusicTrack('alpha', 'drive'), quality: MUSIC_QUALITY,
+  },
+  {
+    id: 'music-relay-bravo-core-01', duration: trackDuration('bravo'), seed: 0x4d425241, stereo: true,
+    description: 'Relay Bravo core bed at 104 BPM in D minor: pumping bass, darker pad, and room tone. Plays for the whole feature.',
+    render: () => renderMusicTrack('bravo', 'core'), quality: MUSIC_QUALITY,
+  },
+  {
+    id: 'music-relay-bravo-drive-01', duration: trackDuration('bravo'), seed: 0x4d425241, stereo: true,
+    description: 'Relay Bravo intensity layer: sixteenth-note sequence and insistent percussion, faded in as the multiplier climbs.',
+    render: () => renderMusicTrack('bravo', 'drive'), quality: MUSIC_QUALITY,
   },
   {
     id: 'sfx-spin-drive-01', duration: 0.72, seed: 0x5350494e,

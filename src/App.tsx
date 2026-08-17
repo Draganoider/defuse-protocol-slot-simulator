@@ -34,6 +34,7 @@ import { MAX_PRESENTED_WIN_PATHS, WIN_PATH_CYCLE_MS } from './presentation/win-s
 import { useGameAudio } from './audio/useGameAudio';
 import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
 import { classifyWin } from './presentation/win-tier';
+import { featureIntensity } from './presentation/feature-intensity';
 import { DEFAULT_PRESENTATION_MS, planSpinTiming, type SpinTiming } from './presentation/spin-timing';
 import {
   createPlayRecord,
@@ -206,6 +207,7 @@ export function App() {
     chooseRoute: playRouteAudio,
     finishFeature: finishFeatureAudio,
     clearFeatureAudio,
+    setFeatureIntensity,
     preview: previewAudio,
   } = useGameAudio();
   const [qaToolsEnabled] = useState(readQaToolsFlag);
@@ -518,6 +520,26 @@ export function App() {
     setSimulationRunning(true);
     simulationWorker.current.postMessage(message);
   }, [seed, session.wager, simulationRunning]);
+
+  // Feature music follows live route state: Alpha on secured reels, Bravo on the multiplier
+  // ladder, both lifting into the closing spins. It only shapes presentation.
+  useEffect(() => {
+    const state = session.bonusState;
+    if (!state) {
+      setFeatureIntensity(0);
+      return;
+    }
+    setFeatureIntensity(featureIntensity({
+      route: state.route,
+      spinsRemaining: state.spinsRemaining,
+      totalAwarded: state.totalAwarded,
+      alphaCharges: state.alphaCharges,
+      securedReels: state.alphaSecuredReels.length,
+      reels: session.config.reels,
+      bravoMultiplier: state.bravoMultiplier,
+      multiplierSteps: session.config.bonus.bravoMultiplierSteps,
+    }));
+  }, [session.bonusState, session.config, setFeatureIntensity]);
 
   const displayedReplay = forcedFixture ? lastReplayId : lastReplayId ?? `${session.rng.algorithm}:${session.rng.position}`;
   const bonus = useMemo(() => bonusView(session), [session]);

@@ -2,7 +2,7 @@
 
 ## Status
 
-The production audio layer contains twenty assets: one seamless Pelagos Relay ambience loop, two seamless route-music loops, and seventeen gameplay effects covering spin motion, five reel stops, paylines, five win tiers, Signal Core activation, both route confirmations, retrigger, and feature completion. Every sound is an original deterministic synthesis committed as Ogg Vorbis; no recordings, sample libraries, game audio, voices, or third-party source material were used. Gameplay one-shots contain no synthesized noise layer, and dry results intentionally add no separate end sound.
+The production audio layer contains twenty-two assets: one seamless base-operation loop, two seamless stems for each of the two feature routes, and seventeen gameplay effects covering spin motion, five reel stops, paylines, five win tiers, Signal Core activation, both route confirmations, retrigger, and feature completion. Every sound is an original deterministic synthesis committed as Ogg Vorbis; no recordings, sample libraries, game audio, voices, or third-party source material were used. Gameplay one-shots contain no synthesized noise layer, and dry results intentionally add no separate end sound.
 
 ## Direction
 
@@ -11,7 +11,20 @@ The sound should feel like a grounded field relay housed in worn industrial equi
 The base-operation bed is a slow musical loop rather than a pure atmosphere: relay room tone
 and electrical hum sit under a filtered pad and a sub pulse in A minor at 72 BPM, with one soft
 kick per bar and sparse machinery. It is ducked to 12 percent while route music plays, because
-two loops in different keys and tempos would otherwise fight. Win tiers become broader and more harmonic as the committed virtual-credit return increases. Relay Alpha is a 22.9-second loop at 84 BPM in A minor over an eight-bar progression, with a
+two loops in different keys and tempos would otherwise fight. Win tiers become broader and more harmonic as the committed virtual-credit return increases. Each feature route ships as two stems rather than one mix, so the music follows the feature
+instead of looping past it. The `core` stem is the bed that plays throughout: bass, pad, and room
+tone. The `drive` stem is the intensity layer: sequence, its delay, and percussion. Both stems of
+a route are the same length, come from the same seed, and are started at one context time, so they
+stay phase locked; only the drive gain moves. They are rendered so that `core` plus `drive`
+reconstructs the complete mix sample for sample, which is why saturation runs on the mix alone and
+every stage after it is linear.
+
+`featureIntensity` maps live feature state onto that gain. Relay Alpha escalates on the reels
+secured for the Extraction Spin, with partial containment charges counting towards the next one.
+Relay Bravo escalates on the multiplier ladder. Both lift into the closing spins, so a feature
+tightens towards its end. The mapping is presentation only and never affects a result.
+
+Relay Alpha is a 22.9-second loop at 84 BPM in A minor over an eight-bar progression, with a
 filter-driven bass, a wide detuned pad, a delayed eighth-note sequence, and restrained industrial
 percussion. Relay Bravo is a 27.7-second loop at 104 BPM in D minor over twelve bars, including a
 Phrygian flat-second chord, with a pumping driven bass, a darker pad, a sixteenth-note sequence,
@@ -29,7 +42,11 @@ oscillators, a topology-preserving state-variable filter, ADSR envelopes, seeded
 a feedback delay, and a Schroeder reverb. Each track is rendered 2.4 seconds past its loop and the
 overflow is folded back over the start, so filter, delay, and reverb tails continue across the loop
 point; sustained tones that span the whole loop are locked to a whole number of cycles per loop.
-Loops encode at Vorbis q3 and one-shots at q5. It creates temporary WAV intermediates, encodes Ogg Vorbis with FFmpeg, removes metadata, records byte sizes and SHA-256 hashes in `src/assets/audio/generated-audio.json`, and deletes the intermediates. A bounded three-attempt encoder retry tolerates transient Windows process-launch failures without hiding a persistent error. Re-running the generator on the verified toolchain produced identical hashes for all twenty files and leaves byte-identical outputs untouched.
+Loops encode at Vorbis q3 and one-shots at q5.
+
+Route stems are fetched only when their route is entered. First activation therefore downloads
+351 KB rather than the full 1,558 KB, and a session that never reaches a feature never fetches
+feature music at all. It creates temporary WAV intermediates, encodes Ogg Vorbis with FFmpeg, removes metadata, records byte sizes and SHA-256 hashes in `src/assets/audio/generated-audio.json`, and deletes the intermediates. A bounded three-attempt encoder retry tolerates transient Windows process-launch failures without hiding a persistent error. Re-running the generator on the verified toolchain produced identical hashes for all twenty files and leaves byte-identical outputs untouched.
 
 To regenerate the runtime files, install FFmpeg with `libvorbis` support and run:
 

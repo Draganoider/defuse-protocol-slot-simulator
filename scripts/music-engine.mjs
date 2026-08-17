@@ -492,7 +492,19 @@ function buildPercussion(track, buffer, loopSamples, secondsPerBeat, random) {
  * Renders one loop as a stereo pair. The caller receives exactly `loopSamples` frames with
  * every effect tail already wrapped over the start.
  */
-export function renderMusicTrack(name) {
+export const MUSIC_STEMS = ['core', 'drive'];
+
+/**
+ * Renders one loop as a stereo pair. `stem` selects which layers are included:
+ *
+ * - `core` is the bed that plays for the whole feature: bass, pad, and room tone.
+ * - `drive` is the intensity layer added on top: sequence, its delay, and percussion.
+ * - `full` is both, used by the base-operation track which follows no intensity.
+ *
+ * Every stem of a track has the same length and comes from the same seed, so stems started
+ * together stay in sync, and `core` plus `drive` reconstructs `full` sample for sample.
+ */
+export function renderMusicTrack(name, stem = 'full') {
   const track = { ...MUSIC_TRACKS[name], name, bars: MUSIC_TRACKS[name].bars };
   const loopSeconds = trackDuration(name);
   const secondsPerBeat = 60 / track.bpm;
@@ -563,6 +575,8 @@ export function renderMusicTrack(name) {
 
   const wideLeft = new Float64Array(totalSamples);
   const wideRight = new Float64Array(totalSamples);
+  const coreLeft = new Float64Array(totalSamples);
+  const coreRight = new Float64Array(totalSamples);
   for (let index = 0; index < totalSamples; index += 1) {
     let padLeft = 0;
     let padRight = 0;
@@ -584,20 +598,28 @@ export function renderMusicTrack(name) {
 
     wideLeft[index] = dry + padLeft + (leadValue * 0.6) + echoLeft + tailLeft;
     wideRight[index] = dry + padRight + (leadValue * 0.6) + echoRight + tailRight;
+    coreLeft[index] = bassLine[index] + padLeft + (tailLeft * 0.7);
+    coreRight[index] = bassLine[index] + padRight + (tailRight * 0.7);
   }
 
   // Fold every effect tail back over the start so the loop point is continuous. Only
   // content that decays is folded; periodic material is added afterwards because it
   // already repeats exactly and would otherwise be summed with itself.
-  const left = wideLeft.slice(0, loopSamples);
-  const right = wideRight.slice(0, loopSamples);
-  for (let index = loopSamples; index < totalSamples; index += 1) {
-    const wrapped = index - loopSamples;
-    if (wrapped >= loopSamples) break;
-    left[wrapped] += wideLeft[index];
-    right[wrapped] += wideRight[index];
-  }
+  const foldTail = (source) => {
+    const folded = source.slice(0, loopSamples);
+    for (let index = loopSamples; index < totalSamples; index += 1) {
+      const wrapped = index - loopSamples;
+      if (wrapped >= loopSamples) break;
+      folded[wrapped] += source[index];
+    }
+    return folded;
+  };
+  const fullLeft = foldTail(wideLeft);
+  const fullRight = foldTail(wideRight);
+  const bedLeft = foldTail(coreLeft);
+  const bedRight = foldTail(coreRight);
 
+  // Room tone belongs to the bed, so a feature dropped to its core keeps the room.
   const [roomLeft, roomRight] = renderRoomTone(
     loopSamples,
     loopSamples,
@@ -606,13 +628,38 @@ export function renderMusicTrack(name) {
     feature ? 0.42 : 1,
   );
   for (let index = 0; index < loopSamples; index += 1) {
-    left[index] = softClip(left[index] + roomLeft[index], 1.15);
-    right[index] = softClip(right[index] + roomRight[index], 1.15);
+    fullLeft[index] += roomLeft[index];
+    fullRight[index] += roomRight[index];
+    bedLeft[index] += roomLeft[index];
+    bedRight[index] += roomRight[index];
   }
 
+  // Saturation runs on the complete mix only. It is the one non-linear stage here, so
+  // applying it per stem would stop the stems summing back to the mix. Every stage after
+  // it is linear, which lets `drive` be exactly what the mix holds beyond the bed.
+  for (let index = 0; index < loopSamples; index += 1) {
+    fullLeft[index] = softClip(fullLeft[index], 1.15);
+    fullRight[index] = softClip(fullRight[index], 1.15);
+  }
   // Remove sub-rumble that only eats headroom and encoder bits.
-  highPassLoop(left, 32);
-  highPassLoop(right, 32);
-  normalizeStereo(left, right, feature ? 0.5 : 0.46);
+  for (const channel of [fullLeft, fullRight, bedLeft, bedRight]) highPassLoop(channel, 32);
+
+  // One shared scale taken from the complete mix, so the stems keep their balance.
+  let peak = 0;
+  for (let index = 0; index < loopSamples; index += 1) {
+    peak = Math.max(peak, Math.abs(fullLeft[index]), Math.abs(fullRight[index]));
+  }
+  const scale = peak > 0 ? (feature ? 0.5 : 0.46) / peak : 1;
+
+  const left = new Float64Array(loopSamples);
+  const right = new Float64Array(loopSamples);
+  for (let index = 0; index < loopSamples; index += 1) {
+    const fullL = fullLeft[index] * scale;
+    const fullR = fullRight[index] * scale;
+    const bedL = bedLeft[index] * scale;
+    const bedR = bedRight[index] * scale;
+    left[index] = stem === 'core' ? bedL : stem === 'drive' ? fullL - bedL : fullL;
+    right[index] = stem === 'core' ? bedR : stem === 'drive' ? fullR - bedR : fullR;
+  }
   return [left, right];
 }

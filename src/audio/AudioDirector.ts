@@ -1,4 +1,4 @@
-import { AUDIO_ASSET_URLS } from './audio-assets';
+import { AUDIO_ASSET_URLS, DEFERRED_AUDIO_CUES, routeMusicCues } from './audio-assets';
 import { recordDiagnostic, recordDiagnosticRateLimited } from '../diagnostics/diagnostic-log';
 import type { AudioCue, AudioSettings, AudioStatus, ScheduledAudioCue } from './types';
 
@@ -6,6 +6,10 @@ type StatusListener = (status: AudioStatus) => void;
 
 /** Level the base-operation bed drops to while route music is playing. */
 const AMBIENCE_FEATURE_DUCK = 0.12;
+
+/** Everything play needs before a route is entered. Route stems load on demand. */
+const ESSENTIAL_CUES = (Object.keys(AUDIO_ASSET_URLS) as AudioCue[])
+  .filter((cue) => !DEFERRED_AUDIO_CUES.includes(cue));
 
 export class AudioDirector {
   private context?: AudioContext;
@@ -15,10 +19,18 @@ export class AudioDirector {
   private effectsBus?: GainNode;
   private musicBus?: GainNode;
   private ambienceSource?: AudioBufferSourceNode;
-  private featureMusic?: { route: 'alpha' | 'bravo'; source: AudioBufferSourceNode; gain: GainNode };
+  private featureMusic?: {
+    route: 'alpha' | 'bravo';
+    sources: readonly AudioBufferSourceNode[];
+    gains: readonly GainNode[];
+    /** Gain of the intensity layer, driven by feature state. */
+    drive: GainNode;
+  };
+  private featureIntensity = 0;
   private desiredFeatureRoute?: 'alpha' | 'bravo';
   private buffers = new Map<AudioCue, AudioBuffer>();
   private loading?: Promise<void>;
+  private pendingLoads = new Map<AudioCue, Promise<void>>();
   private disposed = false;
   private readyLogged = false;
   private activeCues = new Map<AudioBufferSourceNode, GainNode>();
@@ -68,7 +80,7 @@ export class AudioDirector {
         return false;
       }
     }
-    if (this.buffers.size === Object.keys(AUDIO_ASSET_URLS).length && this.ambienceSource) {
+    if (this.buffers.size >= ESSENTIAL_CUES.length && this.ambienceSource) {
       try {
         if (this.context.state !== 'running') await this.context.resume();
         this.onStatus('ready');
@@ -110,8 +122,17 @@ export class AudioDirector {
       this.stopFeatureMusic();
       return;
     }
-    void this.activate().then((active) => {
-      if (active) this.syncFeatureMusic();
+    void this.activate().then(async (active) => {
+      if (!active) return;
+      const [coreCue, driveCue] = routeMusicCues(route);
+      try {
+        await Promise.all([this.loadCue(coreCue), this.loadCue(driveCue)]);
+      } catch {
+        recordDiagnostic('feature-music-unavailable', { route });
+        return;
+      }
+      if (this.disposed || this.desiredFeatureRoute !== route) return;
+      this.syncFeatureMusic();
     });
   }
 
@@ -150,16 +171,32 @@ export class AudioDirector {
     }
   }
 
+  private async loadCue(cue: AudioCue): Promise<void> {
+    if (this.buffers.has(cue) || !this.context) return;
+    const pending = this.pendingLoads.get(cue);
+    if (pending) return pending;
+    const context = this.context;
+    const load = (async () => {
+      const response = await fetch(AUDIO_ASSET_URLS[cue]);
+      if (!response.ok) throw new Error(`Audio asset could not be loaded: ${cue}`);
+      this.buffers.set(cue, await context.decodeAudioData(await response.arrayBuffer()));
+    })();
+    this.pendingLoads.set(cue, load);
+    try {
+      await load;
+    } finally {
+      this.pendingLoads.delete(cue);
+    }
+  }
+
+  /**
+   * Fetches only what play needs immediately. Route music is several hundred kilobytes per
+   * route and is not needed until a route is entered, so it is deferred to that moment.
+   */
   private loadBuffers(): Promise<void> {
     if (this.loading) return this.loading;
     if (!this.context) return Promise.reject(new Error('Audio context is not initialized.'));
-    const context = this.context;
-    this.loading = Promise.all(Object.entries(AUDIO_ASSET_URLS).map(async ([cue, url]) => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Audio asset could not be loaded: ${cue}`);
-      const buffer = await context.decodeAudioData(await response.arrayBuffer());
-      this.buffers.set(cue as AudioCue, buffer);
-    })).then(() => undefined);
+    this.loading = Promise.all(ESSENTIAL_CUES.map((cue) => this.loadCue(cue))).then(() => undefined);
     return this.loading;
   }
 
@@ -181,30 +218,64 @@ export class AudioDirector {
     this.ambienceDuck.gain.setTargetAtTime(target, this.context.currentTime, 0.25);
   }
 
+  /**
+   * Starts every stem of a route at one context time. They are identical lengths from one
+   * seed, so starting together keeps them phase locked for the whole feature; from then on
+   * only the intensity layer's gain moves.
+   */
   private syncFeatureMusic(): void {
     const route = this.desiredFeatureRoute;
     if (!route || !this.context || !this.musicBus) return;
     if (this.featureMusic?.route === route) return;
+    const [coreCue, driveCue] = routeMusicCues(route);
+    const coreBuffer = this.buffers.get(coreCue);
+    const driveBuffer = this.buffers.get(driveCue);
+    if (!coreBuffer || !driveBuffer) return;
     this.stopFeatureMusic();
-    const buffer = this.buffers.get(route === 'alpha' ? 'music-alpha' : 'music-bravo');
-    if (!buffer) return;
-    const source = this.context.createBufferSource();
-    const gain = this.context.createGain();
-    source.buffer = buffer;
-    source.loop = true;
-    gain.gain.value = 0;
-    source.connect(gain);
-    gain.connect(this.musicBus);
-    const entry = { route, source, gain } as const;
+
+    const startAt = this.context.currentTime + 0.06;
+    const sources: AudioBufferSourceNode[] = [];
+    const gains: GainNode[] = [];
+    for (const buffer of [coreBuffer, driveBuffer]) {
+      const source = this.context.createBufferSource();
+      const gain = this.context.createGain();
+      source.buffer = buffer;
+      source.loop = true;
+      gain.gain.value = 0;
+      source.connect(gain);
+      gain.connect(this.musicBus);
+      source.start(startAt);
+      sources.push(source);
+      gains.push(gain);
+    }
+    const entry = { route, sources, gains, drive: gains[1] };
     this.featureMusic = entry;
-    source.onended = () => {
-      source.disconnect();
-      gain.disconnect();
-      if (this.featureMusic?.source === source) this.featureMusic = undefined;
+    sources[0].onended = () => {
+      for (const node of entry.sources) node.disconnect();
+      for (const node of entry.gains) node.disconnect();
+      if (this.featureMusic === entry) this.featureMusic = undefined;
     };
-    source.start();
-    gain.gain.setTargetAtTime(1, this.context.currentTime, 0.18);
-    recordDiagnostic('feature-music-started', { route });
+    gains[0].gain.setTargetAtTime(1, this.context.currentTime, 0.18);
+    this.applyFeatureIntensity();
+    recordDiagnostic('feature-music-started', { route, stems: sources.length });
+  }
+
+  /**
+   * Sets how much of the intensity layer is audible, from 0 to 1. The bed never stops, so
+   * the music thickens and thins with the feature rather than switching between tracks.
+   */
+  setFeatureIntensity(intensity: number): void {
+    const clamped = Math.min(1, Math.max(0, Number.isFinite(intensity) ? intensity : 0));
+    if (Math.abs(clamped - this.featureIntensity) < 0.01) return;
+    this.featureIntensity = clamped;
+    this.applyFeatureIntensity();
+  }
+
+  private applyFeatureIntensity(): void {
+    if (!this.context || !this.featureMusic) return;
+    // A floor keeps the layer present rather than absent at the start of a feature.
+    const level = 0.22 + (this.featureIntensity * 0.78);
+    this.featureMusic.drive.gain.setTargetAtTime(level, this.context.currentTime, 0.5);
   }
 
   private stopFeatureMusic(): void {
@@ -212,9 +283,13 @@ export class AudioDirector {
     if (!active || !this.context) return;
     this.featureMusic = undefined;
     const now = this.context.currentTime;
-    active.gain.gain.cancelScheduledValues(now);
-    active.gain.gain.setTargetAtTime(0, now, 0.12);
-    try { active.source.stop(now + 0.45); } catch { /* Source may already have ended. */ }
+    for (const gain of active.gains) {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(0, now, 0.12);
+    }
+    for (const source of active.sources) {
+      try { source.stop(now + 0.45); } catch { /* Source may already have ended. */ }
+    }
     recordDiagnostic('feature-music-stopped', { route: active.route });
   }
 
@@ -229,10 +304,12 @@ export class AudioDirector {
     this.activeCues.clear();
     try {
       if (this.featureMusic) {
-        this.featureMusic.source.onended = null;
-        this.featureMusic.source.stop();
-        this.featureMusic.source.disconnect();
-        this.featureMusic.gain.disconnect();
+        for (const source of this.featureMusic.sources) {
+          source.onended = null;
+          source.stop();
+          source.disconnect();
+        }
+        for (const gain of this.featureMusic.gains) gain.disconnect();
       }
       this.ambienceSource?.stop();
       this.ambienceSource?.disconnect();

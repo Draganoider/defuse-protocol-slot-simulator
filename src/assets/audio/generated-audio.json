@@ -17,28 +17,52 @@
       "sha256": "4f8e0d5ea9e604f8797b21d034cf39bcd695297f57be53f77e2b6d2ef1e4ebfe"
     },
     {
-      "id": "music-relay-alpha-loop-01",
-      "path": "src/assets/audio/music-relay-alpha-loop-01.ogg",
+      "id": "music-relay-alpha-core-01",
+      "path": "src/assets/audio/music-relay-alpha-core-01.ogg",
       "durationSeconds": 22.857143,
       "sampleRate": 44100,
       "channels": 2,
       "seed": "0x4d414c50",
       "vorbisQuality": 3,
-      "description": "Seamless Relay Alpha loop at 84 BPM in A minor: driven bass, filtered pad, delayed pulse sequence, and restrained industrial percussion.",
-      "bytes": 297783,
-      "sha256": "0a61f1c8a755b408e041231e000a022185dd9cdd276b2e3030699c81543ab66c"
+      "description": "Relay Alpha core bed at 84 BPM in A minor: driven bass, filtered pad, and room tone. Plays for the whole feature.",
+      "bytes": 234710,
+      "sha256": "57bc3806132e63191f6bbe92aea2a76320c982ab402dda21cdca4e94bb8ebc6d"
     },
     {
-      "id": "music-relay-bravo-loop-01",
-      "path": "src/assets/audio/music-relay-bravo-loop-01.ogg",
+      "id": "music-relay-alpha-drive-01",
+      "path": "src/assets/audio/music-relay-alpha-drive-01.ogg",
+      "durationSeconds": 22.857143,
+      "sampleRate": 44100,
+      "channels": 2,
+      "seed": "0x4d414c50",
+      "vorbisQuality": 3,
+      "description": "Relay Alpha intensity layer: delayed pulse sequence and industrial percussion, faded in as containment charges accumulate.",
+      "bytes": 304168,
+      "sha256": "0dc01295e0241098b1bddfbbc5ffcebfe693d3589974aa288c7cf5800011759a"
+    },
+    {
+      "id": "music-relay-bravo-core-01",
+      "path": "src/assets/audio/music-relay-bravo-core-01.ogg",
       "durationSeconds": 27.692308,
       "sampleRate": 44100,
       "channels": 2,
       "seed": "0x4d425241",
       "vorbisQuality": 3,
-      "description": "Seamless Relay Bravo loop at 104 BPM in D minor: pumping bass, darker pad, sixteenth-note sequence, and insistent percussion.",
-      "bytes": 392736,
-      "sha256": "d2b99dba4dd77376ca59a82f5f394aae132cce19e4079cb18d3305412a0866a1"
+      "description": "Relay Bravo core bed at 104 BPM in D minor: pumping bass, darker pad, and room tone. Plays for the whole feature.",
+      "bytes": 299282,
+      "sha256": "5b2716f365f91ceca36d446f999755858cbfedfce901257532b3d63cad1fd381"
+    },
+    {
+      "id": "music-relay-bravo-drive-01",
+      "path": "src/assets/audio/music-relay-bravo-drive-01.ogg",
+      "durationSeconds": 27.692308,
+      "sampleRate": 44100,
+      "channels": 2,
+      "seed": "0x4d425241",
+      "vorbisQuality": 3,
+      "description": "Relay Bravo intensity layer: sixteenth-note sequence and insistent percussion, faded in as the multiplier climbs.",
+      "bytes": 397111,
+      "sha256": "fd1b7234bdec6899785d04645b2435adea26f57777d7a16b10444558a829a5fa"
     },
     {
       "id": "sfx-spin-drive-01",

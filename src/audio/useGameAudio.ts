@@ -60,9 +60,13 @@ export function useGameAudio() {
     director.current?.setFeatureRoute(undefined);
   }, []);
 
+  const setFeatureIntensity = useCallback((intensity: number) => {
+    director.current?.setFeatureIntensity(intensity);
+  }, []);
+
   const preview = useCallback((cue: AudioPreviewCue) => {
     getDirector().playPlan([{ cue, delayMs: 0, gain: 0.9 }]);
   }, [getDirector]);
 
-  return { settings, status, updateSettings, playSpin, presentResult, chooseRoute, finishFeature, clearFeatureAudio, preview } as const;
+  return { settings, status, updateSettings, playSpin, presentResult, chooseRoute, finishFeature, clearFeatureAudio, setFeatureIntensity, preview } as const;
 }
