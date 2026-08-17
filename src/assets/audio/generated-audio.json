@@ -7,35 +7,38 @@
     {
       "id": "ambience-pelagos-relay-loop-01",
       "path": "src/assets/audio/ambience-pelagos-relay-loop-01.ogg",
-      "durationSeconds": 10,
+      "durationSeconds": 26.666667,
       "sampleRate": 44100,
       "channels": 2,
       "seed": "0x50454c41",
-      "description": "Seamless coastal relay wind, pump, and electrical-hum bed.",
-      "bytes": 48463,
-      "sha256": "30c07a6e03a3b83b7ea7c254306e2bc14ef5b20d286c5034ef678d20f6600c6d"
+      "vorbisQuality": 3,
+      "description": "Seamless base-operation bed in A minor: relay room tone, slow filtered pad, sub pulse, and sparse machinery.",
+      "bytes": 214052,
+      "sha256": "4f8e0d5ea9e604f8797b21d034cf39bcd695297f57be53f77e2b6d2ef1e4ebfe"
     },
     {
       "id": "music-relay-alpha-loop-01",
       "path": "src/assets/audio/music-relay-alpha-loop-01.ogg",
-      "durationSeconds": 12,
+      "durationSeconds": 22.857143,
       "sampleRate": 44100,
       "channels": 2,
       "seed": "0x4d414c50",
-      "description": "Seamless restrained Relay Alpha pulse with tuned relay contacts and low machinery.",
-      "bytes": 64559,
-      "sha256": "64377f5eb8dae82efd2bd5038241281321c52b664ce671119070721b93d3770d"
+      "vorbisQuality": 3,
+      "description": "Seamless Relay Alpha loop at 84 BPM in A minor: driven bass, filtered pad, delayed pulse sequence, and restrained industrial percussion.",
+      "bytes": 297783,
+      "sha256": "0a61f1c8a755b408e041231e000a022185dd9cdd276b2e3030699c81543ab66c"
     },
     {
       "id": "music-relay-bravo-loop-01",
       "path": "src/assets/audio/music-relay-bravo-loop-01.ogg",
-      "durationSeconds": 12,
+      "durationSeconds": 27.692308,
       "sampleRate": 44100,
       "channels": 2,
       "seed": "0x4d425241",
-      "description": "Seamless low Relay Bravo recovery rhythm with mechanical tonal percussion.",
-      "bytes": 59465,
-      "sha256": "895281fbd91ad34b3402f34f1db63451be7085420c490f48eeb73fce303eea42"
+      "vorbisQuality": 3,
+      "description": "Seamless Relay Bravo loop at 104 BPM in D minor: pumping bass, darker pad, sixteenth-note sequence, and insistent percussion.",
+      "bytes": 392736,
+      "sha256": "d2b99dba4dd77376ca59a82f5f394aae132cce19e4079cb18d3305412a0866a1"
     },
     {
       "id": "sfx-spin-drive-01",
@@ -44,6 +47,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x5350494e",
+      "vorbisQuality": 5,
       "description": "Noise-free mechanical reel assembly with lever detent and dry roller contacts.",
       "bytes": 8640,
       "sha256": "429074e357d5ea5c8c653c9b70603cb777167bc89a31187d8bff3602c9357b0e"
@@ -55,6 +59,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c415443",
+      "vorbisQuality": 5,
       "description": "Reel 1 magnetic latch with a distinct resonant pitch.",
       "bytes": 5510,
       "sha256": "e06acc85a98946ec2d24354d018b6211cb11bcecd31902f62ec3a0fa7cfa1271"
@@ -66,6 +71,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c4154a4",
+      "vorbisQuality": 5,
       "description": "Reel 2 magnetic latch with a distinct resonant pitch.",
       "bytes": 5551,
       "sha256": "ba859e47968e93d4f6bb0269d1b6bc92cfdd2b83374385e31dd570ade053c9c6"
@@ -77,6 +83,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c415505",
+      "vorbisQuality": 5,
       "description": "Reel 3 magnetic latch with a distinct resonant pitch.",
       "bytes": 5543,
       "sha256": "fad6cda12480fa780cc7acec7669de87ded6497db993a2338ba03ecab5ba9973"
@@ -88,6 +95,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c415566",
+      "vorbisQuality": 5,
       "description": "Reel 4 magnetic latch with a distinct resonant pitch.",
       "bytes": 5573,
       "sha256": "bd6b7a7a813e105bf1c75fb490cf6ada4bb6a3c58071e5902e8cf5b0a551149d"
@@ -99,6 +107,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c4155c7",
+      "vorbisQuality": 5,
       "description": "Reel 5 magnetic latch with a distinct resonant pitch.",
       "bytes": 5541,
       "sha256": "56f69d342c5985f824ed6898e87eef18b0776b40f8eca3eb0dcf7c9c8a3f9dbb"
@@ -110,6 +119,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x4c494e45",
+      "vorbisQuality": 5,
       "description": "Brass relay trace for an evaluated winning payline.",
       "bytes": 6109,
       "sha256": "0a626cbfd40962ea57173c4a55467410169065f363a4e287ef54f348a291c31e"
@@ -121,6 +131,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x57494e31",
+      "vorbisQuality": 5,
       "description": "Three-contact restrained small-win confirmation.",
       "bytes": 6967,
       "sha256": "83f1fa6ae22b1b3ef6b4bd488fb3095b2266a8741fa85afd25df6de6173c6d87"
@@ -132,6 +143,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x57494e32",
+      "vorbisQuality": 5,
       "description": "Layered brass-and-relay medium-win confirmation.",
       "bytes": 9324,
       "sha256": "561c610982334891da1d8796caebd0f414476cf82e77e2333652bbf4ef1c615a"
@@ -143,6 +155,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x57494e33",
+      "vorbisQuality": 5,
       "description": "Broad industrial harmonic rise for a high virtual-credit return.",
       "bytes": 12096,
       "sha256": "211b1b5474cbc50a4f16ad91f4ce83c2bd24be41d9e7f8267f9568d86f68835c"
@@ -154,6 +167,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x57494e34",
+      "vorbisQuality": 5,
       "description": "Extended brass relay rise for a committed ten-times-or-higher return.",
       "bytes": 14340,
       "sha256": "521314be379b327e726d5a1663fac534e713b21d0085637e33a6c10519b69bed"
@@ -165,6 +179,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x57494e35",
+      "vorbisQuality": 5,
       "description": "Broad grounded harmonic recovery sequence for a committed major return.",
       "bytes": 15650,
       "sha256": "66e8fc1469b6ae26f657c7c0350486d848fca6900e5129cafb30c0bf828f8f6e"
@@ -176,6 +191,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x434f5245",
+      "vorbisQuality": 5,
       "description": "Signal Core charge-up and containment lock.",
       "bytes": 8598,
       "sha256": "e19dfe568337fd49b997bbcf859539dc051d9a56d6bffdea788b8d1d74fa12f3"
@@ -187,6 +203,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x414c5048",
+      "vorbisQuality": 5,
       "description": "Clean three-stage Relay Alpha containment identity.",
       "bytes": 8113,
       "sha256": "b60fb816a06b1bb45c252bdde305f033e61afe99232ddbc6befb9d23df1c6bbd"
@@ -198,6 +215,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x42524156",
+      "vorbisQuality": 5,
       "description": "Low mechanical Relay Bravo recovery identity.",
       "bytes": 8961,
       "sha256": "8d9439f13134a3a2b1d331fbb03e1dfe7d07c387239eeedf5e0227b7a27ec018"
@@ -209,6 +227,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x52545247",
+      "vorbisQuality": 5,
       "description": "Feature extension contact sequence and secured-spin confirmation.",
       "bytes": 7864,
       "sha256": "360e070747a9253efa97e33aec03209ccab71c700f734cbeade750cc4a2e4794"
@@ -220,6 +239,7 @@
       "sampleRate": 44100,
       "channels": 1,
       "seed": "0x434f4d50",
+      "vorbisQuality": 5,
       "description": "Grounded relay shutdown and completed-operation confirmation.",
       "bytes": 11392,
       "sha256": "7f012b35d39694fa0ff696929998e8e8fcf8bc57b385c4179935232176be8e05"

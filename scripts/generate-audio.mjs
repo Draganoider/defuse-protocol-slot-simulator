@@ -3,8 +3,14 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { renderMusicTrack, SAMPLE_RATE, trackDuration } from './music-engine.mjs';
 
-const SAMPLE_RATE = 44_100;
+// Short one-shots keep their transients at q5. The long background loops are filtered,
+// mixed under effects, and much denser, so a lower setting saves a lot of download for
+// no useful difference in what a player hears.
+const SFX_QUALITY = 5;
+const MUSIC_QUALITY = 3;
+
 const OUTPUT_DIR = resolve('src/assets/audio');
 const CREATED_ON = '2026-08-16';
 const CREATOR = 'Yevhen Mishchenko';
@@ -85,65 +91,6 @@ function renderMono(duration, _seed, synth) {
   return [channel];
 }
 
-function renderAmbience(duration, seed) {
-  const length = Math.floor(duration * SAMPLE_RATE);
-  const random = seededRandom(seed);
-  const components = Array.from({ length: 52 }, (_, index) => ({
-    cycles: 2 + index + Math.floor(random() * 35),
-    amplitude: (0.012 + random() * 0.025) / Math.sqrt(1 + index * 0.18),
-    phase: random() * TAU,
-    pan: random() * 2 - 1,
-  }));
-  const left = new Float64Array(length);
-  const right = new Float64Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const time = index / SAMPLE_RATE;
-    const loopPhase = time / duration;
-    const windShape = 0.58 + 0.2 * Math.sin(TAU * loopPhase * 2 - 0.4) + 0.12 * Math.sin(TAU * loopPhase * 5 + 1.2);
-    let leftValue = Math.sin(TAU * 50 * time) * 0.035 + Math.sin(TAU * 100 * time + 0.4) * 0.012;
-    let rightValue = Math.sin(TAU * 50 * time + 0.025) * 0.033 + Math.sin(TAU * 100 * time + 0.48) * 0.011;
-    for (const component of components) {
-      const value = Math.sin(TAU * component.cycles * loopPhase + component.phase) * component.amplitude * windShape;
-      leftValue += value * (1 - component.pan * 0.28);
-      rightValue += value * (1 + component.pan * 0.28);
-    }
-    const pump = Math.pow(Math.max(0, Math.sin(TAU * loopPhase * 4 - 0.9)), 8);
-    left[index] = leftValue + pump * Math.sin(TAU * 73 * time) * 0.035;
-    right[index] = rightValue + pump * Math.sin(TAU * 72.5 * time + 0.2) * 0.032;
-  }
-  normalize([left, right], 0.48);
-  return [left, right];
-}
-
-function renderFeatureMusic(duration, route) {
-  const length = Math.floor(duration * SAMPLE_RATE);
-  const left = new Float64Array(length);
-  const right = new Float64Array(length);
-  const alphaSequence = [110, 165, 147, 220, 110, 196, 165, 147];
-  const bravoSequence = [73.5, 98, 82.5, 110, 73.5, 123.75, 98, 82.5];
-  const sequence = route === 'alpha' ? alphaSequence : bravoSequence;
-  const stepDuration = route === 'alpha' ? 0.75 : 0.5;
-  for (let index = 0; index < length; index += 1) {
-    const time = index / SAMPLE_RATE;
-    const stepIndex = Math.floor(time / stepDuration) % sequence.length;
-    const local = time % stepDuration;
-    const pulse = Math.exp(-local * (route === 'alpha' ? 3.6 : 4.8));
-    const base = route === 'alpha'
-      ? Math.sin(TAU * 55 * time) * 0.09 + Math.sin(TAU * 110 * time + 0.25) * 0.035
-      : Math.sin(TAU * 49.5 * time) * 0.115 + Math.sin(TAU * 99 * time + 0.18) * 0.04;
-    const note = Math.sin(TAU * sequence[stepIndex] * time) * pulse * (route === 'alpha' ? 0.13 : 0.16);
-    const upper = Math.sin(TAU * sequence[stepIndex] * 2 * time + 0.45) * pulse * 0.035;
-    const relayTick = Math.pow(Math.max(0, Math.sin(TAU * time / stepDuration)), 20)
-      * Math.sin(TAU * (route === 'alpha' ? 880 : 620) * time) * 0.035;
-    const slowBed = Math.sin(TAU * (route === 'alpha' ? 3 : 2) * time / duration) * 0.025;
-    left[index] = base + note + upper + relayTick + slowBed;
-    right[index] = base * 0.94 + Math.sin(TAU * sequence[stepIndex] * time + 0.035) * pulse * (route === 'alpha' ? 0.125 : 0.155)
-      + Math.sin(TAU * sequence[stepIndex] * 2 * time + 0.58) * pulse * 0.032 - slowBed;
-  }
-  normalize([left, right], 0.5);
-  return [left, right];
-}
-
 function writeWav(channels) {
   const channelCount = channels.length;
   const sampleCount = channels[0].length;
@@ -176,19 +123,19 @@ function writeWav(channels) {
 
 const definitions = [
   {
-    id: 'ambience-pelagos-relay-loop-01', duration: 10, seed: 0x50454c41, stereo: true,
-    description: 'Seamless coastal relay wind, pump, and electrical-hum bed.',
-    render: (duration, seed) => renderAmbience(duration, seed),
+    id: 'ambience-pelagos-relay-loop-01', duration: trackDuration('base'), seed: 0x50454c41, stereo: true,
+    description: 'Seamless base-operation bed in A minor: relay room tone, slow filtered pad, sub pulse, and sparse machinery.',
+    render: () => renderMusicTrack('base'), quality: MUSIC_QUALITY,
   },
   {
-    id: 'music-relay-alpha-loop-01', duration: 12, seed: 0x4d414c50, stereo: true,
-    description: 'Seamless restrained Relay Alpha pulse with tuned relay contacts and low machinery.',
-    render: (duration) => renderFeatureMusic(duration, 'alpha'),
+    id: 'music-relay-alpha-loop-01', duration: trackDuration('alpha'), seed: 0x4d414c50, stereo: true,
+    description: 'Seamless Relay Alpha loop at 84 BPM in A minor: driven bass, filtered pad, delayed pulse sequence, and restrained industrial percussion.',
+    render: () => renderMusicTrack('alpha'), quality: MUSIC_QUALITY,
   },
   {
-    id: 'music-relay-bravo-loop-01', duration: 12, seed: 0x4d425241, stereo: true,
-    description: 'Seamless low Relay Bravo recovery rhythm with mechanical tonal percussion.',
-    render: (duration) => renderFeatureMusic(duration, 'bravo'),
+    id: 'music-relay-bravo-loop-01', duration: trackDuration('bravo'), seed: 0x4d425241, stereo: true,
+    description: 'Seamless Relay Bravo loop at 104 BPM in D minor: pumping bass, darker pad, sixteenth-note sequence, and insistent percussion.',
+    render: () => renderMusicTrack('bravo'), quality: MUSIC_QUALITY,
   },
   {
     id: 'sfx-spin-drive-01', duration: 0.72, seed: 0x5350494e,
@@ -318,13 +265,13 @@ const definitions = [
   },
 ];
 
-async function encodeOgg(wavPath, oggPath) {
+async function encodeOgg(wavPath, oggPath, quality) {
   let failure;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const result = spawnSync('ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-y', '-i', wavPath,
       '-map_metadata', '-1', '-fflags', '+bitexact', '-flags:a', '+bitexact',
-      '-c:a', 'libvorbis', '-q:a', '5', oggPath,
+      '-c:a', 'libvorbis', '-q:a', String(quality), oggPath,
     ], { encoding: 'utf8' });
     if (result.status === 0) return;
     failure = result.error?.message || result.stderr || result.stdout || `exit status ${String(result.status)}`;
@@ -356,7 +303,7 @@ async function main() {
       const temporaryOggPath = join(temporaryDirectory, `${definition.id}.ogg`);
       const runtimeOggPath = join(OUTPUT_DIR, `${definition.id}.ogg`);
       await writeFile(wavPath, wav);
-      await encodeOgg(wavPath, temporaryOggPath);
+      await encodeOgg(wavPath, temporaryOggPath, definition.quality ?? SFX_QUALITY);
       const encoded = await readFile(temporaryOggPath);
       await writeIfChanged(runtimeOggPath, encoded);
       metadata.push({
@@ -366,6 +313,7 @@ async function main() {
         sampleRate: SAMPLE_RATE,
         channels: channels.length,
         seed: `0x${definition.seed.toString(16).padStart(8, '0')}`,
+        vorbisQuality: definition.quality ?? SFX_QUALITY,
         description: definition.description,
         bytes: encoded.byteLength,
         sha256: createHash('sha256').update(encoded).digest('hex'),

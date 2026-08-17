@@ -8,13 +8,28 @@ The production audio layer contains twenty assets: one seamless Pelagos Relay am
 
 The sound should feel like a grounded field relay housed in worn industrial equipment. Its vocabulary is electromechanical: roller drive, contact switches, magnetic latches, filtered wind, quiet pumps, electrical hum, brass resonance, and restrained pneumatic releases. It deliberately avoids gunfire, explosions, radio chatter, recognizable announcer rhythms, science-fiction weapons, orchestral casino fanfares, and sound-alikes from named games.
 
-The base ambience is supportive rather than musical. Win tiers become broader and more harmonic as the committed virtual-credit return increases. Relay Alpha uses a clean rising route identity and a restrained tuned relay pulse; Relay Bravo uses a lower route identity and heavier mechanical tonal rhythm. Both loops remain grounded, sparse, and subordinate to result cues.
+The base-operation bed is a slow musical loop rather than a pure atmosphere: relay room tone
+and electrical hum sit under a filtered pad and a sub pulse in A minor at 72 BPM, with one soft
+kick per bar and sparse machinery. It is ducked to 12 percent while route music plays, because
+two loops in different keys and tempos would otherwise fight. Win tiers become broader and more harmonic as the committed virtual-credit return increases. Relay Alpha is a 22.9-second loop at 84 BPM in A minor over an eight-bar progression, with a
+filter-driven bass, a wide detuned pad, a delayed eighth-note sequence, and restrained industrial
+percussion. Relay Bravo is a 27.7-second loop at 104 BPM in D minor over twelve bars, including a
+Phrygian flat-second chord, with a pumping driven bass, a darker pad, a sixteenth-note sequence,
+and insistent percussion. Both lift in their second half so the loop does not read as one repeated
+bar. Both remain grounded and subordinate to result cues.
 
 The spin start is intentionally physical rather than electronic: a lever detent, low dry roller contacts, internal weight transfer, and mechanical release lead into the five separate reel latches. It contains no rising synthesized motor sweep or broadband noise layer.
 
 ## Source and reproduction
 
-[`scripts/generate-audio.mjs`](../scripts/generate-audio.mjs) synthesizes 44.1 kHz PCM from explicit oscillators, envelopes, damped resonators, periodic ambience/music components, and deterministic numeric seeds. It creates temporary WAV intermediates, encodes Ogg Vorbis with FFmpeg, removes metadata, records byte sizes and SHA-256 hashes in `src/assets/audio/generated-audio.json`, and deletes the intermediates. A bounded three-attempt encoder retry tolerates transient Windows process-launch failures without hiding a persistent error. Re-running the generator on the verified toolchain produced identical hashes for all twenty files and leaves byte-identical outputs untouched.
+[`scripts/generate-audio.mjs`](../scripts/generate-audio.mjs) synthesizes 44.1 kHz PCM from explicit oscillators, envelopes, damped resonators, periodic
+ambience components, and deterministic numeric seeds. Music is rendered by
+[`scripts/music-engine.mjs`](../scripts/music-engine.mjs): PolyBLEP band-limited saw and pulse
+oscillators, a topology-preserving state-variable filter, ADSR envelopes, seeded-noise percussion,
+a feedback delay, and a Schroeder reverb. Each track is rendered 2.4 seconds past its loop and the
+overflow is folded back over the start, so filter, delay, and reverb tails continue across the loop
+point; sustained tones that span the whole loop are locked to a whole number of cycles per loop.
+Loops encode at Vorbis q3 and one-shots at q5. It creates temporary WAV intermediates, encodes Ogg Vorbis with FFmpeg, removes metadata, records byte sizes and SHA-256 hashes in `src/assets/audio/generated-audio.json`, and deletes the intermediates. A bounded three-attempt encoder retry tolerates transient Windows process-launch failures without hiding a persistent error. Re-running the generator on the verified toolchain produced identical hashes for all twenty files and leaves byte-identical outputs untouched.
 
 To regenerate the runtime files, install FFmpeg with `libvorbis` support and run:
 
@@ -33,7 +48,7 @@ Committed SpinResult
   -> pure cue planner (timing and tier selection)
   -> AudioDirector (Web Audio mixer)
      -> master gain
-        -> ambience gain -> looping relay ambience
+        -> ambience gain -> feature duck -> looping base-operation bed
         -> music gain -> selected Alpha/Bravo loop
         -> effects gain  -> spin/result/feature cues
 ```

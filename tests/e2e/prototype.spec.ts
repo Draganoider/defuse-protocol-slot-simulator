@@ -214,7 +214,9 @@ test('winning result exposes a payline ledger and prominent committed total', as
   let foundWin = false;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await spin.click();
-    await page.waitForTimeout(20);
+    // Wait for the committed presentation to finish rather than a fixed delay, because a
+    // pending Signal Core holds the reels well past an ordinary spin.
+    await expect(spin).toBeEnabled();
     if (await page.locator('.dp-win-ledger').count()) {
       foundWin = true;
       break;
@@ -260,14 +262,33 @@ for (const winCase of [
 }
 
 test('animated paylines advance once and clear after the win sequence', async ({ page }) => {
+  test.slow();
   const runtimeErrors = collectRuntimeErrors(page);
   await openPrototype(page);
+
+  // Each payline is only visible for a 900 ms slot, which is shorter than a round trip
+  // from the test can reliably observe. Sample inside the page instead.
+  await page.evaluate(() => {
+    const samples: Array<{ count: number; maxOpacity: number }> = [];
+    (window as unknown as { __paylineSamples: typeof samples }).__paylineSamples = samples;
+    const tick = () => {
+      const paths = [...document.querySelectorAll('.dp-payline-overlay__path')];
+      samples.push({
+        count: paths.length,
+        maxOpacity: paths.reduce((max, path) => Math.max(max, Number(getComputedStyle(path).opacity)), 0),
+      });
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
 
   const spin = page.getByRole('button', { name: 'Spin', exact: true });
   let foundWin = false;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await spin.click();
-    await page.waitForTimeout(650);
+    // Wait for the committed presentation to finish rather than a fixed delay, because a
+    // pending Signal Core holds the reels well past an ordinary spin.
+    await expect(spin).toBeEnabled();
     if (await page.locator('.dp-win-ledger').count()) {
       foundWin = true;
       break;
@@ -276,16 +297,20 @@ test('animated paylines advance once and clear after the win sequence', async ({
   }
 
   expect(foundWin).toBe(true);
-  const paths = page.locator('.dp-payline-overlay__path');
-  const pathCount = await paths.count();
+  const pathCount = await page.locator('.dp-payline-overlay__path').count();
   expect(pathCount).toBeGreaterThan(0);
   expect(pathCount).toBeLessThanOrEqual(4);
-  const activeOpacity = Number(await paths.first().evaluate((element) => getComputedStyle(element).opacity));
-  expect(activeOpacity).toBeGreaterThan(0);
 
-  await page.waitForTimeout(pathCount * 900 + 150);
-  const settledOpacities = await paths.evaluateAll((elements) => elements.map((element) => Number(getComputedStyle(element).opacity)));
-  expect(settledOpacities.every((opacity) => opacity === 0)).toBe(true);
+  await page.waitForTimeout(pathCount * 900 + 250);
+  const samples = await page.evaluate(() =>
+    (window as unknown as { __paylineSamples: Array<{ count: number; maxOpacity: number }> }).__paylineSamples);
+
+  // A payline was visibly traced at some point, no more than four were ever present,
+  // and every path has cleared by the end of the sequence.
+  expect(samples.some((sample) => sample.maxOpacity > 0.5)).toBe(true);
+  expect(Math.max(...samples.map((sample) => sample.count))).toBeLessThanOrEqual(4);
+  expect(samples.at(-1)?.maxOpacity).toBe(0);
+
   expect(runtimeErrors).toEqual([]);
 });
 

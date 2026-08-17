@@ -4,10 +4,14 @@ import type { AudioCue, AudioSettings, AudioStatus, ScheduledAudioCue } from './
 
 type StatusListener = (status: AudioStatus) => void;
 
+/** Level the base-operation bed drops to while route music is playing. */
+const AMBIENCE_FEATURE_DUCK = 0.12;
+
 export class AudioDirector {
   private context?: AudioContext;
   private master?: GainNode;
   private ambienceBus?: GainNode;
+  private ambienceDuck?: GainNode;
   private effectsBus?: GainNode;
   private musicBus?: GainNode;
   private ambienceSource?: AudioBufferSourceNode;
@@ -45,6 +49,10 @@ export class AudioDirector {
         this.ambienceBus = this.context.createGain();
         this.effectsBus = this.context.createGain();
         this.musicBus = this.context.createGain();
+        // The base bed is a musical loop in its own key and tempo, so it is ducked rather
+        // than layered while route music plays. Its own volume control stays on the bus.
+        this.ambienceDuck = this.context.createGain();
+        this.ambienceDuck.connect(this.ambienceBus);
         this.ambienceBus.connect(this.master);
         this.effectsBus.connect(this.master);
         this.musicBus.connect(this.master);
@@ -97,6 +105,7 @@ export class AudioDirector {
 
   setFeatureRoute(route?: 'alpha' | 'bravo'): void {
     this.desiredFeatureRoute = route;
+    this.applyAmbienceDuck();
     if (!route) {
       this.stopFeatureMusic();
       return;
@@ -155,14 +164,21 @@ export class AudioDirector {
   }
 
   private startAmbience(): void {
-    if (this.ambienceSource || !this.context || !this.ambienceBus) return;
+    if (this.ambienceSource || !this.context || !this.ambienceDuck) return;
     const buffer = this.buffers.get('ambience');
     if (!buffer) return;
     this.ambienceSource = this.context.createBufferSource();
     this.ambienceSource.buffer = buffer;
     this.ambienceSource.loop = true;
-    this.ambienceSource.connect(this.ambienceBus);
+    this.ambienceSource.connect(this.ambienceDuck);
     this.ambienceSource.start();
+    this.applyAmbienceDuck();
+  }
+
+  private applyAmbienceDuck(): void {
+    if (!this.context || !this.ambienceDuck) return;
+    const target = this.desiredFeatureRoute ? AMBIENCE_FEATURE_DUCK : 1;
+    this.ambienceDuck.gain.setTargetAtTime(target, this.context.currentTime, 0.25);
   }
 
   private syncFeatureMusic(): void {
@@ -220,6 +236,7 @@ export class AudioDirector {
       }
       this.ambienceSource?.stop();
       this.ambienceSource?.disconnect();
+      this.ambienceDuck?.disconnect();
       this.ambienceBus?.disconnect();
       this.effectsBus?.disconnect();
       this.musicBus?.disconnect();

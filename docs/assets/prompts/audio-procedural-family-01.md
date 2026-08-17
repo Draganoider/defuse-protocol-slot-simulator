@@ -4,21 +4,21 @@
 - **Creation date:** 2026-08-16
 - **Creator:** Yevhen Mishchenko
 - **Tool class:** Repository-owned JavaScript PCM synthesizer plus local FFmpeg Ogg Vorbis encoder
-- **Source:** `scripts/generate-audio.mjs`
+- **Source:** `scripts/generate-audio.mjs` and `scripts/music-engine.mjs`
 - **Runtime record:** `src/assets/audio/generated-audio.json`
 
 ## Method
 
-No text-to-audio model, recording, external sample, downloaded sound, or third-party reference was used. The generator constructs every sample from sine oscillators, damped resonances, frequency sweeps, envelopes, and deterministic periodic ambience components at 44.1 kHz. Gameplay one-shots contain no synthesized noise generator. It normalizes conservatively, writes temporary 16-bit PCM WAV data, encodes Vorbis q5 without metadata, hashes the runtime files, and removes the intermediates.
+No text-to-audio model, recording, external sample, downloaded sound, or third-party reference was used. The generator constructs every sample at 44.1 kHz from source. One-shots use sine oscillators, damped resonances, frequency sweeps, and envelopes, and contain no synthesized noise generator. The three background loops use a repository-owned synthesizer: PolyBLEP band-limited saw and pulse oscillators, a topology-preserving state-variable filter, ADSR envelopes, seeded-noise percussion, a feedback delay, and a Schroeder reverb, arranged over written chord progressions. It normalizes conservatively, writes temporary 16-bit PCM WAV data, encodes Vorbis without metadata at q3 for loops and q5 for one-shots, hashes the runtime files, and removes the intermediates.
 
 Each asset has an explicit numeric seed in the runtime record. Re-running the complete generator on the verified toolchain produced byte-identical Ogg files and matching SHA-256 values.
 
 ## Creative brief encoded in the source
 
-- Pelagos Relay ambience: quiet coastal wind through metalwork, pump cycles, and electrical hum.
+- Base operation: quiet coastal wind through metalwork, pump cycles, and electrical hum, under a slow filtered pad and sub pulse in A minor at 72 BPM.
 - Reel motion: grounded lever detent, low dry roller contacts, internal weight transfer, mechanical release, and five pitch-varied magnetic latch contacts. The spin bed contains no rising electronic motor sweep and no broadband or filtered-noise layer.
 - Results: brass relay trace plus small, medium, large, big, and major harmonic confirmations.
-- Feature: Signal Core charge/lock; clean rising Alpha identity; lower mechanical Bravo identity; distinct seamless route-music loops; retrigger and completed-operation confirmations.
+- Feature: Signal Core charge/lock; clean rising Alpha identity; lower mechanical Bravo identity; distinct seamless route-music loops (Alpha at 84 BPM in A minor, Bravo at 104 BPM in D minor); retrigger and completed-operation confirmations.
 
 ## Negative constraints
 

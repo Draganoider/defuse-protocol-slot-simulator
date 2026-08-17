@@ -17,12 +17,13 @@ Grounded Pelagos Relay machinery: filtered coastal wind, quiet pump cycles, elec
 
 ## Technical specification
 
-- 44.1 kHz Ogg Vorbis q5 runtime delivery
+- 44.1 kHz Ogg Vorbis runtime delivery: q3 for the three background loops, q5 for one-shots
 - stereo ambience and music loops; mono one-shot effects
 - deterministic numeric seed per asset
 - conservative synthesized peak normalization
 - no embedded source metadata
-- ambience and route music composed from integer-period components for continuous loops
+- background loops rendered past the loop end with the overflow folded back over the start, and whole-loop sustained tones locked to an integer cycle count, so effect tails cross the loop point
+- room tone composed from integer-period components
 - exact duration, channel count, byte size, seed, and SHA-256 in `src/assets/audio/generated-audio.json`
 
 ## Acceptance gates
