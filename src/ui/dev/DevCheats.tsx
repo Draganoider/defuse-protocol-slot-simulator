@@ -7,8 +7,9 @@ export interface DevCheatsProps {
 
 /**
  * Clearly labeled controls that request a forced feature outcome. These ship in every
- * build. A forced result is still produced by the engine, is marked developer generated,
- * and is excluded from simulation, so it cannot misrepresent the declared mathematics.
+ * build but are only mounted when the QA flag is requested with `?qa=1`. A forced result
+ * is still produced by the engine, is marked developer generated, and is excluded from
+ * simulation, so it cannot misrepresent the declared mathematics.
  */
 export default function DevCheats({ open, setOpen, onForceBonus, onReset }: DevCheatsProps) {
   return (

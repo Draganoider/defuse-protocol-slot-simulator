@@ -56,7 +56,7 @@ The prototype is acceptable when all of the following pass:
 
 ## Cheat menu
 
-- The menu is visibly labeled `DEV CHEATS` and states that forced results are marked and do not alter RTP rules.
+- The menu is visibly labeled `DEV CHEATS`, mounts only at `?qa=1`, and states that forced results are marked and do not alter RTP rules.
 - It offers forced three-, four-, and five-CORE bonus fixtures plus session reset.
 - Forced state is visibly marked and carries developer-generated metadata.
 - A forced trigger is not counted as an ordinary random paid spin or included silently in observed statistics.

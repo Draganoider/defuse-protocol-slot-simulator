@@ -1,7 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  MAX_PRESENTED_WIN_PATHS,
-  WIN_PATH_CYCLE_MS,
   ReelCanvas,
   type ReelCell,
   type ReelGrid,
@@ -320,7 +318,6 @@ export function Prototype(props: PrototypeProps) {
         <div className="dp-cabinet__header"><span className={inFeature ? 'dp-mode dp-mode--feature' : 'dp-mode'}>{inFeature ? 'Defuse Operation' : 'Base operation'}</span><span>5 reels · 20 fixed lines</span><span className={`dp-status-dot dp-status-dot--${outcomeFeedback.tone}`}>{outcomeFeedback.statusLabel}</span></div>
         <div className="dp-reel-frame">
           <ReelCanvas grid={activeGrid} phase={props.phase} winningCells={props.winningCells} winningPaths={winningPaths} bonusRoute={sceneRoute} winTier={winPresentation.tier} spinTiming={props.spinTiming} reducedMotion={props.reducedMotion} className="dp-reel-canvas" />
-          {hasPresentedWin && winningPaths.length > 0 && <PaylineOverlay paths={winningPaths} reducedMotion={props.reducedMotion} />}
           {hasPresentedWin && <WinCelebration payout={props.lastWin} presentation={winPresentation} replayId={props.replayId} reducedMotion={props.reducedMotion} />}
           {choosingRoute && <BonusChoice onChoose={props.onChooseBonus} reducedMotion={props.reducedMotion} />}
         </div>
@@ -442,30 +439,6 @@ function WinLedger({ paths }: { paths: readonly WinningPath[] }) {
       </ol>
       {paths.length > visiblePaths.length && <p>+{paths.length - visiblePaths.length} additional winning paylines</p>}
     </section>
-  );
-}
-
-function PaylineOverlay({ paths, reducedMotion }: { paths: readonly WinningPath[]; reducedMotion?: boolean }) {
-  const displayedPaths = [...paths]
-    .sort((left, right) => right.payout - left.payout || left.lineIndex - right.lineIndex)
-    .slice(0, reducedMotion ? 1 : MAX_PRESENTED_WIN_PATHS);
-  return (
-    <svg className="dp-payline-overlay" viewBox="-0.5 -0.5 5 3" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      {displayedPaths.map((path, index) => {
-        const delay = index * WIN_PATH_CYCLE_MS;
-        const points = path.positions.map(({ column, row }) => `${column},${row}`).join(' ');
-        const payingPositions = path.winningPositions?.length ? path.winningPositions : path.positions;
-        return (
-          <g key={`${path.lineIndex}-${path.symbolId}`} className="dp-payline-overlay__path" data-line={path.lineIndex + 1} style={{ animationDelay: `${delay}ms` }}>
-            <polyline className="dp-payline-overlay__shadow" points={points} pathLength="1" style={{ animationDelay: `${delay}ms` }} />
-            <polyline className="dp-payline-overlay__trace" points={points} pathLength="1" style={{ animationDelay: `${delay}ms` }} />
-            {payingPositions.map(({ column, row }) => (
-              <circle key={`${column}-${row}`} className="dp-payline-overlay__contact" cx={column} cy={row} r="0.055" style={{ animationDelay: `${delay + 360}ms` }} />
-            ))}
-          </g>
-        );
-      })}
-    </svg>
   );
 }
 

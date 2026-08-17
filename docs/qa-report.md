@@ -166,6 +166,24 @@ timeout. No product behaviour was relaxed to make a test pass. One real gap surf
 fixed: a paused feature reported only the payout, so the live region now also states that
 automatic spins are paused.
 
+### Resolved P2 — winning lines were drawn twice, slightly out of register
+
+**Reproduction:** win on any payline and look at the traced route.
+
+Two layers drew the same winning route: the PixiJS renderer and an HTML overlay above the
+canvas. Measured on a 1280-wide viewport, the overlay agreed with the renderer only at the
+centre cell and was sixteen pixels out horizontally and eight vertically at the corners, so the
+two traces visibly diverged along their length. The overlay additionally combined
+`stroke-dasharray: 1` with `vector-effect: non-scaling-stroke`, which puts the dash pattern in
+screen space, so its intended draw-on animation rendered as a chain of one-pixel beads that
+never advanced.
+
+The overlay was removed and the renderer now owns the trace, which guarantees the route uses
+the same board geometry as the symbols under it. The sequencing decision moved into
+`planWinSequence` with unit tests covering ordering, per-cycle draw progress, the four-path
+presentation cap, sequence completion, and the reduced-motion hold. Captured frames confirm one
+aligned trace with contact marks on the paying cells and a clean clear after the sequence.
+
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively
@@ -255,7 +273,7 @@ Fresh-browser console and page-error capture reported no warnings or errors.
 
 ## Production cheat boundary
 
-The menu ships in every build by decision. The normal engine entry point still does not
+The menu ships in every build by decision, gated behind an explicit `?qa=1` request so the default published page has no cheat controls. The normal engine entry point still does not
 export `createDeveloperCheatBonus`, so no ordinary consumer of the engine can reach it, and
 forced results stay marked and excluded from simulation. A production build served under the
 GitHub Pages base path was verified on 2026-08-17: the menu is present, forcing four Cores

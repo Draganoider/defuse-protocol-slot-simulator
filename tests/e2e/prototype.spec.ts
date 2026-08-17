@@ -12,7 +12,11 @@ function collectRuntimeErrors(page: Page): string[] {
   return errors;
 }
 
-async function openPrototype(page: Page, seedWords: readonly [number, number] = [1, 2]) {
+async function openPrototype(
+  page: Page,
+  seedWords: readonly [number, number] = [1, 2],
+  options: { readonly qaTools?: boolean } = {},
+) {
   await page.addInitScript((words) => {
     const originalGetRandomValues = crypto.getRandomValues.bind(crypto);
     Object.defineProperty(crypto, 'getRandomValues', {
@@ -27,7 +31,7 @@ async function openPrototype(page: Page, seedWords: readonly [number, number] = 
       },
     });
   }, seedWords);
-  await page.goto('/');
+  await page.goto(options.qaTools ? '/?qa=1' : '/');
   await expect(page.getByRole('heading', { name: 'Defuse Protocol' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Defuse Protocol slot simulator' })).toBeVisible();
 }
@@ -253,8 +257,6 @@ test('winning result exposes a payline ledger and prominent committed total', as
 
   expect(foundWin).toBe(true);
   await expect(page.locator('.dp-prototype')).toHaveClass(/dp-prototype--win/);
-  await expect(page.locator('.dp-payline-overlay')).toBeVisible();
-  await expect(page.locator('.dp-payline-overlay__trace')).toHaveAttribute('points', /\d,\d/);
   await expect(page.locator('.dp-win-total strong')).toContainText(/^\+[\d,]+$/);
   await expect(page.getByRole('region', { name: 'Winning paylines' })).toBeVisible();
   await expect(page.locator('.dp-win-ledger li').first()).toContainText(/Line \d{2}/);
@@ -288,64 +290,11 @@ for (const winCase of [
   });
 }
 
-test('animated paylines advance once and clear after the win sequence', async ({ page }) => {
-  test.slow();
-  const runtimeErrors = collectRuntimeErrors(page);
-  await openPrototype(page);
-
-  // Each payline is only visible for a 900 ms slot, which is shorter than a round trip
-  // from the test can reliably observe. Sample inside the page instead.
-  await page.evaluate(() => {
-    const samples: Array<{ count: number; maxOpacity: number }> = [];
-    (window as unknown as { __paylineSamples: typeof samples }).__paylineSamples = samples;
-    const tick = () => {
-      const paths = [...document.querySelectorAll('.dp-payline-overlay__path')];
-      samples.push({
-        count: paths.length,
-        maxOpacity: paths.reduce((max, path) => Math.max(max, Number(getComputedStyle(path).opacity)), 0),
-      });
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
-
-  const spin = page.getByRole('button', { name: 'Spin', exact: true });
-  let foundWin = false;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    await spin.click();
-    // Wait for the committed presentation to finish rather than a fixed delay, because a
-    // pending Signal Core holds the reels well past an ordinary spin.
-    await expect(spin).toBeEnabled();
-    if (await page.locator('.dp-win-ledger').count()) {
-      foundWin = true;
-      break;
-    }
-    expect(await page.getByRole('dialog', { name: 'Choose a relay route' }).count()).toBe(0);
-  }
-
-  expect(foundWin).toBe(true);
-  const pathCount = await page.locator('.dp-payline-overlay__path').count();
-  expect(pathCount).toBeGreaterThan(0);
-  expect(pathCount).toBeLessThanOrEqual(4);
-
-  await page.waitForTimeout(pathCount * 900 + 250);
-  const samples = await page.evaluate(() =>
-    (window as unknown as { __paylineSamples: Array<{ count: number; maxOpacity: number }> }).__paylineSamples);
-
-  // A payline was visibly traced at some point, no more than four were ever present,
-  // and every path has cleared by the end of the sequence.
-  expect(samples.some((sample) => sample.maxOpacity > 0.5)).toBe(true);
-  expect(Math.max(...samples.map((sample) => sample.count))).toBeLessThanOrEqual(4);
-  expect(samples.at(-1)?.maxOpacity).toBe(0);
-
-  expect(runtimeErrors).toEqual([]);
-});
-
 for (const route of ['Alpha', 'Bravo'] as const) {
   test(`Relay ${route} autospins can pause and resume while wagers stay locked`, async ({ page }) => {
     test.slow();
     const runtimeErrors = collectRuntimeErrors(page);
-    await openPrototype(page);
+    await openPrototype(page, [1, 2], { qaTools: true });
     // Five Cores award the longest feature for either route, so the run cannot finish
     // underneath the pause and resume steps on a slow machine.
     const choice = await forceCoreChoice(page, 5);
@@ -410,7 +359,7 @@ test('completed Bravo feature reports its total and returns to the base environm
   test.slow();
   const runtimeErrors = collectRuntimeErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openPrototype(page);
+  await openPrototype(page, [1, 2], { qaTools: true });
   const choice = await forceCoreChoice(page);
   await choice.getByRole('button', { name: /Relay Bravo/ }).click();
 
@@ -429,8 +378,6 @@ test('console dialogs open as viewport modals instead of trailing page sections'
   const runtimeErrors = collectRuntimeErrors(page);
   await openPrototype(page);
 
-  // The development cheat menu is lazy-loaded and would otherwise land between samples.
-  await expect(page.getByRole('button', { name: /^DEV CHEATS/ })).toBeVisible();
   const documentHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
   const baselineHeight = await documentHeight();
   for (const panel of [
@@ -463,7 +410,7 @@ test('console dialogs open as viewport modals instead of trailing page sections'
 
 test('the Signal Core route choice opens over the reels and locks the console', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
-  await openPrototype(page);
+  await openPrototype(page, [1, 2], { qaTools: true });
   const choice = await forceCoreChoice(page);
 
   await expect(choice.getByRole('button', { name: /Relay Alpha/ })).toBeFocused();
@@ -569,6 +516,31 @@ test('a wager above the balance blocks the spin and stays recoverable', async ({
   await stepWager('Decrease wager', 99);
   await expect(wager).toHaveText('20 VC');
   await expect(spin).toBeEnabled();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('the forced-feature menu stays hidden until the QA flag is requested', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page);
+
+  const cheatToggle = page.getByRole('button', { name: /^DEV CHEATS/ });
+  await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeVisible();
+  await expect(cheatToggle).toHaveCount(0);
+  await expect(page.locator('.dp-cheats')).toHaveCount(0);
+
+  await page.goto('/?qa=1');
+  await expect(cheatToggle).toBeVisible();
+  await cheatToggle.click();
+  await expect(page.getByRole('button', { name: 'Force 4 CORE' })).toBeVisible();
+
+  // The flag survives a reload without the query so a session reset keeps the controls.
+  await page.goto('/');
+  await expect(cheatToggle).toBeVisible();
+
+  // And it can be turned back off explicitly.
+  await page.goto('/?qa=0');
+  await expect(cheatToggle).toHaveCount(0);
 
   expect(runtimeErrors).toEqual([]);
 });

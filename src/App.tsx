@@ -24,12 +24,11 @@ import {
   type PrototypeStatistics,
 } from './ui/Prototype';
 import {
-  MAX_PRESENTED_WIN_PATHS,
-  WIN_PATH_CYCLE_MS,
   type ReelCell,
   type ReelGrid,
   type WinningPath,
 } from './renderer/ReelCanvas';
+import { MAX_PRESENTED_WIN_PATHS, WIN_PATH_CYCLE_MS } from './presentation/win-sequence';
 import { useGameAudio } from './audio/useGameAudio';
 import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
 import { classifyWin } from './presentation/win-tier';
@@ -41,6 +40,33 @@ const BONUS_AUTOPLAY_WIN_GAP_MS = 1_800;
 /** Extra hold after a feature win so its celebration is readable before the next spin. */
 const BONUS_AUTOPLAY_TIER_TAIL_MS = 420;
 const MIN_SPIN_ENTRY_GAP_MS = 180;
+
+/**
+ * The forced-feature menu is available in every build, including the published site, but
+ * only when explicitly requested with `?qa=1`. The default experience stays clean while a
+ * single link still reaches the controls, and the preference persists for the tab so a
+ * session reset or reload does not drop it.
+ */
+const QA_STORAGE_KEY = 'defuse-protocol:qa-tools:v1';
+
+function readQaToolsFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const requested = new URLSearchParams(window.location.search).get('qa');
+    if (requested === '1') {
+      window.sessionStorage.setItem(QA_STORAGE_KEY, '1');
+      return true;
+    }
+    if (requested === '0') {
+      window.sessionStorage.removeItem(QA_STORAGE_KEY);
+      return false;
+    }
+    return window.sessionStorage.getItem(QA_STORAGE_KEY) === '1';
+  } catch {
+    // Blocked storage must never prevent the game from loading.
+    return false;
+  }
+}
 
 function createUiSeed(): string {
   const values = new Uint32Array(2);
@@ -148,6 +174,7 @@ export function App() {
     clearFeatureAudio,
     preview: previewAudio,
   } = useGameAudio();
+  const [qaToolsEnabled] = useState(readQaToolsFlag);
   const [seed, setSeed] = useState(createUiSeed);
   const [session, setSession] = useState(() => createSession({ seed }));
   const [balance, setBalance] = useState(STARTING_BALANCE);
@@ -369,7 +396,7 @@ export function App() {
   }, [phase, session.phase]);
 
   const handleForceBonus = useCallback(async (cores: 3 | 4 | 5) => {
-    if (session.phase !== 'base' || phase === 'spinning') return;
+    if (!qaToolsEnabled || session.phase !== 'base' || phase === 'spinning') return;
     const { createDeveloperCheatBonus } = await import('./engine/dev-tools');
     setSession(createDeveloperCheatBonus(session, cores));
     setGrid(forcedCoreGrid(cores));
@@ -380,7 +407,7 @@ export function App() {
     setSpinTiming(undefined);
     setForcedFixture(true);
     setPhase('bonus-choice');
-  }, [phase, session]);
+  }, [phase, qaToolsEnabled, session]);
 
   const handleRunSimulation = useCallback((sampleSize: 10_000 | 100_000, route: BonusRoute) => {
     if (!simulationWorker.current || simulationRunning) return;
@@ -421,7 +448,7 @@ export function App() {
       reducedMotion={reducedMotion}
       audioSettings={audioSettings}
       audioStatus={audioStatus}
-      devCheatsEnabled
+      devCheatsEnabled={qaToolsEnabled}
       onSpin={handleSpin}
       onChooseBonus={handleChooseBonus}
       onToggleBonusAutoplay={() => setBonusAutoplay((current) => !current)}

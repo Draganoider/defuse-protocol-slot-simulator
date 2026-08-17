@@ -171,38 +171,7 @@ button:focus-visible { outline-color: #e0bd68; }
   box-shadow: inset 0 0 0 2px rgb(216 178 92 / .42), inset 0 -4px #b08b46, 0 0 36px rgb(209 154 69 / .2);
 }
 .dp-reel-frame { position: relative; }
-.dp-payline-overlay {
-  position: absolute;
-  z-index: 4;
-  inset: 8px;
-  width: calc(100% - 16px);
-  height: calc(100% - 16px);
-  overflow: visible;
-  pointer-events: none;
-}
-.dp-payline-overlay polyline {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
-  animation: dp-payline-trace 540ms cubic-bezier(.16, .78, .24, 1) both;
-}
-.dp-payline-overlay__path { opacity: 0; animation: dp-payline-cycle 900ms linear both; }
-.dp-payline-overlay__shadow { stroke: rgb(13 15 12 / .94); stroke-width: 14; }
-.dp-payline-overlay__trace {
-  stroke: #f0c86f;
-  stroke-width: 6;
-  filter: drop-shadow(0 0 5px rgb(216 178 92 / .85));
-}
-.dp-payline-overlay__contact {
-  fill: #f7e4aa;
-  stroke: #21170b;
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
-  animation: dp-payline-contact 240ms ease-out both;
-}
+
 .dp-win-total {
   position: relative;
   z-index: 2;
@@ -419,26 +388,6 @@ button:focus-visible { outline-color: #e0bd68; }
   64% { transform: scaleY(.98); }
   100% { opacity: .98; transform: scaleY(1); }
 }
-@keyframes dp-payline-trace {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-@keyframes dp-payline-cycle {
-  0%, 5% { opacity: 0; }
-  12%, 72% { opacity: 1; }
-  100% { opacity: 0; }
-}
-@keyframes dp-payline-contact {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dp-payline-overlay__path { opacity: 1; }
-  .dp-payline-overlay__path:not(:first-child) { display: none; }
-}
-.dp-prototype--reduced-motion .dp-payline-overlay__path { opacity: 1; }
-.dp-prototype--reduced-motion .dp-payline-overlay__path:not(:first-child) { display: none; }
 .dp-prototype--reduced-motion .dp-win-celebration__sparks,
 .dp-prototype--reduced-motion .dp-win-celebration__ring,
 .dp-prototype--reduced-motion .dp-route-atmosphere i { display: none; }

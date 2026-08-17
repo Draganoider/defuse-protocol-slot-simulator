@@ -3,6 +3,13 @@ import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, Text
 import { recordDiagnostic, recordDiagnosticRateLimited } from '../diagnostics/diagnostic-log';
 import { WIN_TIER_DURATION_MS, type WinTier } from '../presentation/win-tier';
 import { REEL_BASE_MS, REEL_STAGGER_MS, type SpinTiming } from '../presentation/spin-timing';
+import {
+  MAX_PRESENTED_WIN_PATHS,
+  planWinSequence,
+  winSequenceDurationMs,
+  WIN_PATH_CYCLE_MS,
+  WIN_PATH_DRAW_MS,
+} from '../presentation/win-sequence';
 import recoveryCaseUrl from '../assets/symbols/symbol-recovery-case-base-01.webp';
 import containmentSpecialistUrl from '../assets/symbols/symbol-containment-specialist-wild-01.webp';
 import signalCoreUrl from '../assets/symbols/symbol-signal-core-base-01.webp';
@@ -31,8 +38,6 @@ export interface WinningPath {
   readonly winningPositions?: readonly ReelCell[];
 }
 
-export const WIN_PATH_CYCLE_MS = 900;
-export const MAX_PRESENTED_WIN_PATHS = 4;
 
 export interface ReelCanvasProps {
   /** The complete grid selected by the engine. This component never changes it. */
@@ -69,7 +74,7 @@ const MOTION = {
   /** Reel travel while a reel holds for a possible trigger, in grid cycles per second. */
   anticipationCyclesPerSecond: 1.8,
   resultEmphasisMs: 460,
-  winPathDrawMs: 620,
+  winPathDrawMs: WIN_PATH_DRAW_MS,
   winPathCycleMs: WIN_PATH_CYCLE_MS,
   winResponseMs: WIN_PATH_CYCLE_MS * MAX_PRESENTED_WIN_PATHS,
   corePulseMs: 1_400,
@@ -416,12 +421,9 @@ function drawWinningPaths(
     .slice(0, MAX_PRESENTED_WIN_PATHS);
   if (validPaths.length === 0) return;
 
-  const sequenceDuration = validPaths.length * MOTION.winPathCycleMs;
-  if (!reducedMotion && elapsed >= sequenceDuration) return;
-  const activeIndex = reducedMotion ? 0 : Math.floor(elapsed / MOTION.winPathCycleMs);
+  const { activeIndex, drawProgress, finished } = planWinSequence(elapsed, validPaths.length, reducedMotion);
+  if (finished) return;
   const activePath = validPaths[activeIndex];
-  const cycleElapsed = reducedMotion ? MOTION.winPathDrawMs + 90 : elapsed % MOTION.winPathCycleMs;
-  const drawProgress = reducedMotion ? 1 : easeOutCubic(clamp01((cycleElapsed - 90) / MOTION.winPathDrawMs));
   const activeKeys = new Set(activePath.positions.map(({ row, column }) => `${row}:${column}`));
   const payingPositions = activePath.winningPositions?.length ? activePath.winningPositions : activePath.positions;
 
@@ -804,7 +806,7 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const animateResult = isSettled && elapsed < MOTION.resultEmphasisMs;
         // Keep one extra frame after the last displayed line so the final path
         // is cleared instead of remaining over the next presentation state.
-        const winSequenceMs = Math.min(state.winningPaths.length, MAX_PRESENTED_WIN_PATHS) * MOTION.winPathCycleMs;
+        const winSequenceMs = winSequenceDurationMs(state.winningPaths.length);
         const animateWin = isSettled && state.winningPaths.length > 0 && elapsed < winSequenceMs + 64;
         const animateCore = (state.phase === 'bonus-choice' || state.phase === 'bonus') && hasCore && elapsed < MOTION.corePulseMs;
         const tierDuration = state.winTier === 'standard' ? 0 : WIN_TIER_DURATION_MS[state.winTier];

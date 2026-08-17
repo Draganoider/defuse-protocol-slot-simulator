@@ -17,7 +17,11 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 3. The UI enters `spinning`; controls lock and the live region states that a committed result is being presented.
 4. Reels decelerate with a 244 ms base duration and 47 ms stagger per column. The fifth reel settles by 432 ms unless a reel is held for a possible trigger.
 5. At 520 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
-6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, fades, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
+6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
+   The trace is drawn only by the renderer that draws the reels, so it always uses the same
+   board geometry as the symbols underneath it. `planWinSequence` owns which route is active
+   and how far it is drawn, which keeps that timing contract unit-tested rather than buried in
+   a render loop.
 7. The committed payout divided by wager selects a presentation-only tier: standard below 5×, strong from 5×, big from 10×, and major from 25×. The tier scales cabinet response, Pixi sweeps/rings/particles, the counted headline, and the result cue; it never changes math.
    Larger returns hold longer and count longer, so the number is readable rather than instant:
 
@@ -72,6 +76,21 @@ Relay Alpha crossfades the base depot into a project-owned early-dusk plate with
 ## Bonus autoplay
 
 Choosing either route enables automatic free spins and its original music loop. React waits 650 ms after an active-feature no-win presentation becomes ready, invokes one deterministic `spinBonus` transition, commits that result, and only then begins its presentation. A winning feature result is held for at least 1,800 ms, the selected tier duration plus 420 ms, and, for multi-line wins, until 200 ms after the final displayed 900 ms line slot. A measured Relay Bravo run held a blank spin for 0.65 s, a 1.5× return for 1.8 s, a 10× return for 4.0 s, and a 43× return for 5.6 s. It schedules the following spin only after the preceding presentation completes. Pause/Resume controls future scheduling; pausing during or after a presentation never cancels, redraws, or mutates a committed result. A paused feature states that automatic spins are paused even while a payout is on screen, so the reason play has stopped is always visible. The final feature spin fades route music, plays a completion cue, and opens a semantic summary with route, spins played, and accumulated virtual-credit return. Session reset and route entry return autoplay to its default enabled state.
+
+## One renderer owns the reel surface
+
+Anything drawn over the grid — traces, dimming, contact marks, scatter anticipation — is drawn
+by the PixiJS renderer, because only it knows the board layout it computed for the symbols.
+
+An earlier build also drew the winning routes a second time as an HTML overlay above the
+canvas. That overlay mapped a fixed five-by-three viewBox onto its own box, while the renderer
+centres a square-cell board with gaps inside the canvas. The two grids agreed only at the
+centre cell and drifted about sixteen pixels apart at the corners, so every win showed two
+traces slightly out of register. The overlay also set `stroke-dasharray: 1` together with
+`vector-effect: non-scaling-stroke`, which makes the dash pattern screen-space: instead of one
+dash covering the route and animating on, it rendered as a chain of one-pixel beads. Both
+problems came from duplicating the drawing rather than from either technique, so the overlay
+was removed.
 
 ## Accessibility and failure behavior
 
