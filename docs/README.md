@@ -16,6 +16,7 @@ This directory is the durable source of truth for product, engineering, mathemat
 - `public-repository-checklist.md` — licensing, safety, security, attribution, and release checks
 - `prototype-test-plan.md` — first-playable acceptance and QA scenarios
 - `feature-buy-proposal.md` — implemented virtual-credit feature buy: measured route prices, engine boundary, and separate reporting
+- `bonus-redesign-research.md` — **research, nothing decided**: feature readability gaps and costed options for a deeper bonus mechanic
 - `contributing-notes.md` — durable contributor and maintainer expectations
 - `assets/` — asset provenance schema, manifest, approved briefs, and sanitized prompt records
 - `adr/` — Architecture Decision Records for foundational choices
