@@ -14,7 +14,7 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 
 1. The engine returns the complete result and next deterministic session state.
 2. The application commits the final grid, payout, replay identifier, exact winning cells, and evaluated payline paths.
-3. The UI enters `spinning`; controls lock and the live region states that a committed result is being presented.
+3. The UI enters `spinning`; controls lock and the live region reports that the reels are in motion.
 4. Reels run at a constant speed and decelerate only at the end. At the default speed the first reel settles at 750 ms with a 150 ms stagger, so the fifth settles at 1,350 ms unless a reel is held for a possible trigger.
 5. At 1,470 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
 6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
@@ -153,7 +153,8 @@ was removed.
 - Reduced motion skips the presentation delay and shows a stable final grid with a static payline, ledger, and confirmed total.
 - The cabinet exposes `aria-busy` only while presenting the committed result.
 - Space invokes the same base-game Spin intent as the button. Repeats, modified key presses, active dialogs, focused interactive controls, feature autoplay, and locked presentation states do not trigger it.
-- A polite atomic live region announces locked, winning, no-payout, route-choice, and active-feature states.
+- A polite atomic live region announces spinning, winning, no-payout, route-choice, and active-feature states.
+- Status copy addresses the player about the game, not the reader about the engine. How results are generated is explained in the paytable, the laboratory, and this documentation; the status line during a spin says the reels are in motion and nothing more. Announcing that a result is being withheld invites the player to wonder what is being withheld.
 - Relay Alpha exposes containment charges as a semantic progress bar.
 - When the remaining balance cannot cover the current wager, Spin is disabled and labeled, the live region names the shortfall, and the wager controls stay enabled so play resumes without a session reset.
 - Relay Bravo exposes its current multiplier and protection state as text.

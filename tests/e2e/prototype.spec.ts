@@ -189,7 +189,7 @@ test('ordinary spin presents its committed result and returns to ready', async (
   expect(locked.label).toBe('Presenting result…');
   expect(locked.disabled).toBe(true);
   expect(locked.busy).toBe('true');
-  expect(locked.feedback).toContain('Presenting committed result');
+  expect(locked.feedback).toContain('Reels in motion');
   expect(locked.wagerLocked).toBe(true);
   const committedResult = {
     scoreboard: locked.scoreboard,
@@ -618,7 +618,9 @@ test('a payout stays hidden until the reels finish settling', async ({ page }) =
   });
 
   await expect(page.locator('.dp-scoreboard dd').first()).toHaveText('2,000 VC');
-  const during = await page.evaluate(() => new Promise<{ balance: string; lastWin: string; total: string; record: string }>((resolve) => {
+  const during = await page.evaluate(() => new Promise<{
+    balance: string; lastWin: string; total: string; record: string; feedback: string;
+  }>((resolve) => {
     document.querySelector<HTMLButtonElement>('.dp-spin-button')!.click();
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const cells = [...document.querySelectorAll('.dp-scoreboard dd')].map((cell) => cell.textContent ?? '');
@@ -627,6 +629,7 @@ test('a payout stays hidden until the reels finish settling', async ({ page }) =
         lastWin: cells[2],
         total: document.querySelector('.dp-win-total strong')?.textContent ?? '',
         record: document.querySelector('.dp-play-record-line')?.textContent ?? '',
+        feedback: document.querySelector('#dp-result-feedback')?.textContent ?? '',
       });
     }));
   }));
@@ -636,6 +639,9 @@ test('a payout stays hidden until the reels finish settling', async ({ page }) =
   expect(during.lastWin).toBe('0 VC');
   expect(during.total).toBe('—');
   expect(during.record).toBe('');
+  // The status line reports motion, not that a result is being withheld.
+  expect(during.feedback).toContain('Reels in motion');
+  expect(during.feedback).not.toMatch(/committed|engine/i);
 
   await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeEnabled();
   const after = await readout();

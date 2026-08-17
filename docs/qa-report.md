@@ -266,6 +266,21 @@ on a presentation boundary. `the feature meter does not advance while the reels 
 running` samples the meter each frame and requires it to be constant inside every presentation
 window, while still changing between spins so the check cannot pass vacuously.
 
+### Resolved P3 — status copy explained the engine to the player
+
+The spin status read `Result locked / Presenting committed result / Reel motion only reveals the
+result already supplied by the game engine`, and the no-win and payout lines referred to "the
+committed result" in the same way. The intent was transparency, but stating that a result is
+being withheld invites the player to wonder what is being withheld, and it is engine vocabulary
+in a place reserved for the game.
+
+The status line now reports `Spinning / Reels in motion`, a dry result reads `No payline paid on
+this spin`, and a payout reads `Payout added to your virtual-credit balance`. The virtual-credit
+framing is retained everywhere it appears, and the determinism claims themselves are unchanged:
+they remain in the paytable, the laboratory, the provenance strip, and this documentation, which
+are the places that exist to make them. A browser check asserts the spinning status contains no
+engine vocabulary.
+
 ## Spin speed QA
 
 The reel presentation was extended because the original 520 ms cut left no room for the reels

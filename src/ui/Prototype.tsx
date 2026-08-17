@@ -183,16 +183,16 @@ export function Prototype(props: PrototypeProps) {
   const buyDisabled = presentationLocked || inFeature || !props.onBuyFeature || props.balance < cheapestBuy;
   const outcomeFeedback = useMemo(() => {
     if (props.phase === 'spinning') return {
-      eyebrow: 'Result locked',
-      title: 'Presenting committed result',
-      detail: 'Reel motion only reveals the result already supplied by the game engine.',
+      eyebrow: 'Spinning',
+      title: 'Reels in motion',
+      detail: '',
       tone: 'pending',
-      statusLabel: 'Result presenting',
+      statusLabel: 'Spinning',
     } as const;
     if (props.phase === 'bonus-choice') return {
       eyebrow: 'Signal Core event',
       title: 'Feature route required',
-      detail: 'The result is confirmed. Choose a relay route to continue the operation.',
+      detail: 'Choose a relay route to continue the operation.',
       tone: 'feature',
       statusLabel: 'Awaiting route',
     } as const;
@@ -207,7 +207,7 @@ export function Prototype(props: PrototypeProps) {
       const route = inFeature ? `${props.bonus?.route === 'bravo' ? 'Relay Bravo' : 'Relay Alpha'} · ` : '';
       const lineDetail = strongestPath
         ? `${winningPaths.length} winning ${winningPaths.length === 1 ? 'line' : 'lines'}. Strongest: line ${strongestPath.lineIndex + 1}, ${symbolName(strongestPath.symbolId)} ×${strongestPath.winningPositions?.length ?? strongestPath.positions.length}, +${formatCredits(strongestPath.payout)} VC.`
-        : 'Virtual-credit payout applied from the committed result.';
+        : 'Payout added to your virtual-credit balance.';
       // A paused feature otherwise reports only the payout, leaving no statement that the
       // next automatic spin is waiting on the player.
       const pausedNote = inFeature && props.bonusAutoplay === false ? ' Automatic spins paused.' : '';
@@ -235,7 +235,7 @@ export function Prototype(props: PrototypeProps) {
     if (props.phase === 'result') return {
       eyebrow: 'Result confirmed',
       title: 'No line payout',
-      detail: 'The committed result returned no virtual-credit payout.',
+      detail: 'No payline paid on this spin.',
       tone: 'neutral',
       statusLabel: 'Result confirmed',
     } as const;
