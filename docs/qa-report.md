@@ -140,6 +140,24 @@ committed return: 0.65 s for a blank spin, 1.8 s at 1.5×, 3.8 s at 8.4×, 4.0 s
 5.6 s at 43×. The accessible ledger, live region, and balance still state the authoritative
 total immediately, so no announcement waits on an animation.
 
+### Resolved P2 — browser tests failed on shared CI runners
+
+**Reproduction:** push to `main` and inspect the CI workflow. Browser tests had failed on
+every push since `753841b`, while passing on a development machine.
+
+The suite assumed development-machine speed. A 15-second budget did not cover flows that
+drive thirty spins, several assertions tried to observe transient states such as the 520 ms
+presentation window or a 900 ms payline slot across a driver round trip, and the pause and
+resume flow raced the 650 ms autoplay timer. Anticipation holds made the margins tighter.
+
+Transient states are now sampled inside the page in a single call, the pause assertion
+compares the replay identifier against itself instead of a fixed value, the pause request
+retries rather than racing one click, feature tests force the longest available run so the
+feature cannot end underneath them, and the budget is 60 seconds with a 10-second expect
+timeout. No product behaviour was relaxed to make a test pass. One real gap surfaced and was
+fixed: a paused feature reported only the payout, so the live region now also states that
+automatic spins are paused.
+
 ## Grounded production asset QA
 
 The approved visual slice was redesigned after the first version read as excessively
