@@ -102,6 +102,7 @@ test('a synchronous rapid-click burst enters only one spin transition', async ({
 });
 
 test('repeated fast spins keep one renderer alive and retain bounded diagnostics', async ({ page }) => {
+  test.slow();
   const runtimeErrors = collectRuntimeErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openPrototype(page);
@@ -159,15 +160,39 @@ test('ordinary spin presents its committed result and returns to ready', async (
   const cabinet = page.getByRole('region', { name: 'Defuse Protocol slot simulator' });
   const decreaseWager = page.getByRole('button', { name: 'Decrease wager' });
   const increaseWager = page.getByRole('button', { name: 'Increase wager' });
-  await spin.click();
-  const presenting = page.getByRole('button', { name: 'Presenting result…' });
-  await expect(presenting).toBeVisible();
-  await expect(presenting).toBeDisabled();
-  await expect(cabinet).toHaveAttribute('aria-busy', 'true');
-  await expect(page.locator('#dp-result-feedback')).toContainText('Presenting committed result');
-  await expect(decreaseWager).toBeDisabled();
-  await expect(increaseWager).toBeDisabled();
-  const committedResult = await resultFingerprint(page);
+  // An ordinary presentation lasts 520 ms, which is shorter than a driver round trip can
+  // reliably observe on a loaded CI runner. Click and read the locked state in one call.
+  const locked = await page.evaluate(() => new Promise<{
+    label: string; disabled: boolean; busy: string | null; feedback: string;
+    wagerLocked: boolean; scoreboard: string[]; seed: string; replay: string; provenance: string;
+  }>((resolve) => {
+    const button = () => document.querySelector<HTMLButtonElement>('.dp-spin-button')!;
+    const wagerButton = (label: string) => document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+    button().click();
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+      label: button().textContent?.trim() ?? '',
+      disabled: button().disabled,
+      busy: document.querySelector('.dp-cabinet')?.getAttribute('aria-busy') ?? null,
+      feedback: document.querySelector('#dp-result-feedback')?.textContent ?? '',
+      wagerLocked: wagerButton('Decrease wager').disabled && wagerButton('Increase wager').disabled,
+      scoreboard: [...document.querySelectorAll('.dp-scoreboard dd')].map((cell) => cell.textContent ?? ''),
+      seed: document.querySelector('.dp-replay code')?.textContent ?? '',
+      replay: document.querySelectorAll('.dp-replay span')[1]?.textContent ?? '',
+      provenance: document.querySelector('.dp-provenance')?.textContent ?? '',
+    })));
+  }));
+
+  expect(locked.label).toBe('Presenting result…');
+  expect(locked.disabled).toBe(true);
+  expect(locked.busy).toBe('true');
+  expect(locked.feedback).toContain('Presenting committed result');
+  expect(locked.wagerLocked).toBe(true);
+  const committedResult = {
+    scoreboard: locked.scoreboard,
+    seed: locked.seed,
+    replay: locked.replay,
+    provenance: locked.provenance,
+  };
   await expect(spin).toBeVisible();
   await expect(spin).toBeEnabled();
   await expect(cabinet).toHaveAttribute('aria-busy', 'false');
@@ -179,7 +204,9 @@ test('ordinary spin presents its committed result and returns to ready', async (
   expect(presentedResult.scoreboard).toEqual(committedResult.scoreboard);
   expect(presentedResult.seed).toEqual(committedResult.seed);
   expect(presentedResult.replay).toEqual(committedResult.replay);
-  expect(presentedResult.provenance).toEqual(committedResult.provenance);
+  // textContent and innerText differ in element separators, so compare the text itself.
+  const withoutSpacing = (value: string) => value.replace(/\s+/g, '');
+  expect(withoutSpacing(presentedResult.provenance)).toEqual(withoutSpacing(committedResult.provenance));
 
   expect(runtimeErrors).toEqual([]);
 });

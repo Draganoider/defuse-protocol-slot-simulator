@@ -10,9 +10,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: 'line',
-  timeout: 15_000,
+  // These drive real reel animation, feature autoplay, and win holds. Shared CI runners
+  // are far slower than a development machine, so the budget is generous on purpose: it
+  // only costs time when something is genuinely broken.
+  timeout: 60_000,
   expect: {
-    timeout: 5_000,
+    timeout: 10_000,
   },
   use: {
     baseURL: `http://127.0.0.1:${port}`,

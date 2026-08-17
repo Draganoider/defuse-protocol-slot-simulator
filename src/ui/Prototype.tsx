@@ -195,10 +195,13 @@ export function Prototype(props: PrototypeProps) {
       const lineDetail = strongestPath
         ? `${winningPaths.length} winning ${winningPaths.length === 1 ? 'line' : 'lines'}. Strongest: line ${strongestPath.lineIndex + 1}, ${symbolName(strongestPath.symbolId)} ×${strongestPath.winningPositions?.length ?? strongestPath.positions.length}, +${formatCredits(strongestPath.payout)} VC.`
         : 'Virtual-credit payout applied from the committed result.';
+      // A paused feature otherwise reports only the payout, leaving no statement that the
+      // next automatic spin is waiting on the player.
+      const pausedNote = inFeature && props.bonusAutoplay === false ? ' Automatic spins paused.' : '';
       return {
         eyebrow: `${route}payout confirmed`,
         title: `+${formatCredits(props.lastWin)} VC`,
-        detail: lineDetail,
+        detail: `${lineDetail}${pausedNote}`,
         tone: 'win',
         statusLabel: inFeature ? 'Feature payout confirmed' : 'Payout confirmed',
       } as const;
