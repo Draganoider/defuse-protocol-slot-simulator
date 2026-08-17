@@ -35,7 +35,14 @@ import { useGameAudio } from './audio/useGameAudio';
 import { recordDiagnostic, recordDiagnosticRateLimited } from './diagnostics/diagnostic-log';
 import { classifyWin } from './presentation/win-tier';
 import { featureIntensity } from './presentation/feature-intensity';
-import { DEFAULT_PRESENTATION_MS, planSpinTiming, type SpinTiming } from './presentation/spin-timing';
+import {
+  DEFAULT_SPIN_SPEED,
+  isSpinSpeed,
+  naturalSpinTiming,
+  planSpinTiming,
+  type SpinSpeed,
+  type SpinTiming,
+} from './presentation/spin-timing';
 import {
   createPlayRecord,
   parsePlayRecord,
@@ -64,6 +71,16 @@ const MAX_AWARD_SCATTERS = Math.max(
  * session reset or reload does not drop it.
  */
 const QA_STORAGE_KEY = 'defuse-protocol:qa-tools:v1';
+const SPIN_SPEED_STORAGE_KEY = 'defuse-protocol:spin-speed:v1';
+
+function loadSpinSpeed(): SpinSpeed {
+  try {
+    const stored = window.localStorage.getItem(SPIN_SPEED_STORAGE_KEY);
+    return isSpinSpeed(stored) ? stored : DEFAULT_SPIN_SPEED;
+  } catch {
+    return DEFAULT_SPIN_SPEED;
+  }
+}
 
 function readQaToolsFlag(): boolean {
   if (typeof window === 'undefined') return false;
@@ -228,6 +245,7 @@ export function App() {
   const [featureSummary, setFeatureSummary] = useState<PrototypeFeatureSummary>();
   const [spinTiming, setSpinTiming] = useState<SpinTiming>();
   const [playRecord, setPlayRecord] = useState<PlayRecord>(loadPlayRecord);
+  const [spinSpeed, setSpinSpeed] = useState<SpinSpeed>(loadSpinSpeed);
   const presentationTimer = useRef<number | undefined>(undefined);
   const bonusAutoplayTimer = useRef<number | undefined>(undefined);
   const simulationWorker = useRef<Worker | undefined>(undefined);
@@ -303,6 +321,7 @@ export function App() {
       scatterReelIndexes: result.scatter.positions.map((position) => position.reel),
       triggerScatters: DEFAULT_GAME_CONFIG.bonus.triggerScatters,
       maxAwardScatters: MAX_AWARD_SCATTERS,
+      speed: spinSpeed,
     });
     setSpinTiming(timing);
     setGrid(transposeGrid(result.evaluatedGrid));
@@ -337,7 +356,7 @@ export function App() {
         developerGenerated: result.developerGenerated,
       });
     });
-  }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion, trackSpin]);
+  }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion, spinSpeed, trackSpin]);
 
   const handleSpin = useCallback(() => {
     const now = performance.now();
@@ -470,11 +489,24 @@ export function App() {
     setLastReplayId(undefined);
     setHighlightedCells([]);
     setHighlightedPaths([]);
-    setSpinTiming(undefined);
+    setSpinTiming(naturalSpinTiming(spinSpeed));
     setForcedFixture(false);
     setPhase('ready');
     recordDiagnostic('session-reset', { wager: session.wager });
-  }, [clearFeatureAudio, seed, session.wager]);
+  }, [clearFeatureAudio, seed, session.wager, spinSpeed]);
+
+  const handleToggleSpinSpeed = useCallback(() => {
+    setSpinSpeed((current) => {
+      const next: SpinSpeed = current === 'turbo' ? 'standard' : 'turbo';
+      try {
+        window.localStorage.setItem(SPIN_SPEED_STORAGE_KEY, next);
+      } catch {
+        // The preference is best effort and never blocks play.
+      }
+      recordDiagnostic('spin-speed-changed', { speed: next });
+      return next;
+    });
+  }, []);
 
   const handleNewSeed = useCallback(() => {
     const nextSeed = createUiSeed();
@@ -503,10 +535,10 @@ export function App() {
     setLastReplayId(`DEV-FORCED-${cores}-CORE`);
     setHighlightedCells([]);
     setHighlightedPaths([]);
-    setSpinTiming(undefined);
+    setSpinTiming(naturalSpinTiming(spinSpeed));
     setForcedFixture(true);
     setPhase('bonus-choice');
-  }, [phase, qaToolsEnabled, session]);
+  }, [phase, qaToolsEnabled, session, spinSpeed]);
 
   const handleRunSimulation = useCallback((sampleSize: 10_000 | 100_000, route: BonusRoute) => {
     if (!simulationWorker.current || simulationRunning) return;
@@ -559,6 +591,8 @@ export function App() {
       featureSummary={featureSummary}
       bonusAutoplay={bonusAutoplay}
       insufficientCredits={session.phase === 'base' && balance < session.wager}
+      spinSpeed={spinSpeed}
+      onToggleSpinSpeed={handleToggleSpinSpeed}
       featureBuyPrices={featureBuyPrices}
       onBuyFeature={handleBuyFeature}
       playRecord={playRecord}

@@ -469,15 +469,34 @@ test('a pending third Signal Core holds the remaining reels before settling', as
   expect(runtimeErrors).toEqual([]);
 });
 
-test('an ordinary spin keeps its short presentation', async ({ page }) => {
+test('the default spin runs its full reel presentation and turbo shortens it', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await openPrototype(page);
 
   const spin = page.getByRole('button', { name: 'Spin', exact: true });
-  const startedAt = Date.now();
-  await spin.click();
-  await expect(spin).toBeEnabled();
-  expect(Date.now() - startedAt).toBeLessThan(1_500);
+  const turbo = page.getByRole('button', { name: 'Turbo' });
+  await expect(turbo).toHaveAttribute('aria-pressed', 'false');
+
+  const timeOneSpin = async () => {
+    const startedAt = Date.now();
+    await spin.click();
+    await expect(spin).toBeEnabled();
+    return Date.now() - startedAt;
+  };
+
+  // Long enough to read as a spin rather than a cut, without becoming a wait.
+  const standard = await timeOneSpin();
+  expect(standard).toBeGreaterThan(1_500);
+  expect(standard).toBeLessThan(3_500);
+
+  await turbo.click();
+  await expect(turbo).toHaveAttribute('aria-pressed', 'true');
+  const turboSpin = await timeOneSpin();
+  expect(turboSpin).toBeLessThan(standard - 700);
+
+  // The choice is remembered for the next visit.
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Turbo' })).toHaveAttribute('aria-pressed', 'true');
 
   expect(runtimeErrors).toEqual([]);
 });

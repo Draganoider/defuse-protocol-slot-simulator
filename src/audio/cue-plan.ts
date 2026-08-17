@@ -4,6 +4,8 @@ import { classifyWin } from '../presentation/win-tier';
 import { DEFAULT_PRESENTATION_MS, type SpinTiming } from '../presentation/spin-timing';
 
 const REELS = 5;
+/** Length of the reel-mechanism sample, used to repeat it across a longer spin. */
+const SPIN_DRIVE_MS = 620;
 
 /**
  * Schedules the drive and one latch per reel. When a committed timing plan is supplied the
@@ -15,6 +17,15 @@ export function createSpinCuePlan(reducedMotion = false, timing?: SpinTiming): r
   const settleStart = reducedMotion ? 35 : 235;
   const settleStep = reducedMotion ? 18 : 54;
   const stops = reducedMotion ? undefined : timing?.reelStopMs;
+
+  // The mechanism sample is shorter than a standard-speed spin, so it repeats until the
+  // last reel lands. At least one reel is turning for that whole span, so without this the
+  // reels would keep visibly spinning over silence.
+  const lastStop = stops?.at(-1) ?? 0;
+  for (let at = SPIN_DRIVE_MS; at < lastStop - 140; at += SPIN_DRIVE_MS) {
+    plan.push({ cue: 'spin-drive', delayMs: at, gain: 0.52 });
+  }
+
   for (let reel = 0; reel < REELS; reel += 1) {
     const delayMs = stops?.[reel] ?? settleStart + settleStep * reel;
     if (stops && timing && timing.anticipation[reel] !== 'none') {
@@ -22,7 +33,9 @@ export function createSpinCuePlan(reducedMotion = false, timing?: SpinTiming): r
     }
     plan.push({ cue: `reel-latch-${reel + 1}` as ScheduledAudioCue['cue'], delayMs, gain: 0.76 + reel * 0.035 });
   }
-  return plan;
+  // Cues are built per layer, so order the plan by time before handing it over. The mixer
+  // schedules by delay either way; a time-ordered plan is simply easier to reason about.
+  return [...plan].sort((left, right) => left.delayMs - right.delayMs);
 }
 
 function winCue(result: SpinResult): ScheduledAudioCue['cue'] {

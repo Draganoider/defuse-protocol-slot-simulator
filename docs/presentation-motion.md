@@ -15,8 +15,8 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 1. The engine returns the complete result and next deterministic session state.
 2. The application commits the final grid, payout, replay identifier, exact winning cells, and evaluated payline paths.
 3. The UI enters `spinning`; controls lock and the live region states that a committed result is being presented.
-4. Reels decelerate with a 244 ms base duration and 47 ms stagger per column. The fifth reel settles by 432 ms unless a reel is held for a possible trigger.
-5. At 520 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
+4. Reels run at a constant speed and decelerate only at the end. At the default speed the first reel settles at 1,000 ms with a 200 ms stagger, so the fifth settles at 1,800 ms unless a reel is held for a possible trigger.
+5. At 1,940 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
 6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
    The trace is drawn only by the renderer that draws the reels, so it always uses the same
    board geometry as the symbols underneath it. `planWinSequence` owns which route is active
@@ -52,16 +52,50 @@ flanks it; secondary controls group to its right rather than displacing it.
 Together these keep the Spin button at the same document coordinate before and after a win, which
 is verified by measuring the control's position across a winning spin.
 
+## Spin speed
+
+Two speeds are declared in `SPIN_SPEEDS`, and the whole presentation is derived from the one
+in force. `standard` is the default:
+
+| | Standard | Turbo |
+| --- | ---: | ---: |
+| First reel settles | 1,000 ms | 244 ms |
+| Stagger per reel | 200 ms | 47 ms |
+| Fifth reel settles | 1,800 ms | 432 ms |
+| Settle tail | 140 ms | 88 ms |
+| **Ordinary spin** | **1,940 ms** | **520 ms** |
+| Trigger hold per reel | 1,200 ms | 700 ms |
+| Award hold per reel | 700 ms | 420 ms |
+
+Turbo is the presentation the game shipped with. It is kept as an explicit choice rather than
+removed, because throughput is a legitimate preference, and it is a toggle beside the wager
+stepper that reports its state through `aria-pressed`. The choice is remembered per browser.
+
+Only the display changes. Both speeds settle on the same committed result from the same seed,
+and a seeded replay is identical under either.
+
+A reel's motion is derived from its duration rather than fixed: it holds a constant speed for
+the first 62 percent of its spin and eases out over the remainder, with velocity continuous at
+the hand-over. Travel distance is computed from that duration so every reel spins at the same
+speed regardless of when it stops, and is rounded to whole grid cycles so a reel still lands
+aligned. Easing across the whole spin instead, which is what the original short presentation
+did, makes a longer spin look like it is braking from its first frame.
+
+The reel-mechanism cue is shorter than a standard spin, so it repeats until the last reel lands.
+At least one reel is turning for that whole span, and without the repeat the reels would visibly
+keep spinning over silence. The cue plan is returned in time order.
+
 ## Scatter anticipation
 
 When the reels that have already settled hold exactly one Signal Core fewer than the trigger
-requires, every following reel keeps running for an extra 700 ms before it settles. The hold
+requires, every following reel keeps running for an extra hold before it settles: 1,200 ms at
+the default speed, 700 ms in turbo. The hold
 is cumulative, so a spin that lands both Cores on the opening reels holds reels three, four,
 and five in turn.
 
 Once the trigger is met the wait continues in a second, quieter form. A fourth and fifth Core
 raise the award from 10 to 13 to 16 Alpha spins, or 6 to 8 to 10 Bravo spins, so the remaining
-reels are held for a shorter 420 ms while that is still possible, and are released as soon as no
+reels are held for a shorter hold, 700 ms by default, while that is still possible, and are released as soon as no
 further Core could add anything. This form only ever applies to a spin that has already
 triggered — roughly one in 117 — so ordinary spins keep their short presentation. It is drawn in
 gold rather than amber and its extra pass of the reel mechanism is quieter, so the louder

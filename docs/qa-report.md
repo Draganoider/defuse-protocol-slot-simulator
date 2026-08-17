@@ -248,6 +248,23 @@ finish settling` verifies that a 244 credit return shows a 1,980 balance, a zero
 idle total, and no record line during presentation, then 2,224, 244, and a recorded paid spin
 afterwards.
 
+## Spin speed QA
+
+The reel presentation was extended because the original 520 ms cut left no room for the reels
+to read as spinning, and made automatic feature spins feel hurried. The default is now 1,940 ms
+and the original timing is retained as an explicit turbo toggle.
+
+Unit tests cover the speed profiles being ordered shorter at every stage, the award hold staying
+shorter than the trigger hold in both, a plan reporting the speed it was built for and applying
+it throughout, reel durations being independent of the holds placed before them, and rejection
+of undeclared speed values. A browser flow times a real spin at each speed, requires the default
+to land between 1.5 and 3.5 seconds, requires turbo to be at least 700 ms shorter, and confirms
+the choice survives a reload.
+
+Live review measured five consecutive automatic feature spins at 1,958, 1,960, 1,961, 1,962, and
+1,920 ms against the designed 1,940 ms. A captured frame shows reels four and five still turning
+while the first three have landed, which the previous timing was too short to show.
+
 ## Adaptive feature music QA
 
 Each route ships as a core bed and an intensity stem. A check on the rendered buffers confirms

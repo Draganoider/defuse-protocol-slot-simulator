@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { recordDiagnostic, recordDiagnosticRateLimited } from '../diagnostics/diagnostic-log';
 import { WIN_TIER_DURATION_MS, type WinTier } from '../presentation/win-tier';
-import { REEL_BASE_MS, REEL_STAGGER_MS, type SpinTiming } from '../presentation/spin-timing';
+import { naturalSpinTiming, type SpinTiming } from '../presentation/spin-timing';
 import {
   MAX_PRESENTED_WIN_PATHS,
   planWinSequence,
@@ -68,11 +68,16 @@ const PALETTE = {
   deep: 0x171b19,
 };
 
+/** Used only until the first committed plan arrives. */
+const FALLBACK_TIMING = naturalSpinTiming();
+
 const MOTION = {
-  reelBaseMs: REEL_BASE_MS,
-  reelStaggerMs: REEL_STAGGER_MS,
   /** Reel travel while a reel holds for a possible trigger, in grid cycles per second. */
-  anticipationCyclesPerSecond: 1.8,
+  anticipationCyclesPerSecond: 2.1,
+  /** Speed of a reel during the constant-velocity part of its spin, in grid cycles/second. */
+  spinCyclesPerSecond: 10,
+  /** Fraction of a reel's spin that runs at constant speed before it decelerates. */
+  spinHoldFraction: 0.62,
   resultEmphasisMs: 460,
   winPathDrawMs: WIN_PATH_DRAW_MS,
   winPathCycleMs: WIN_PATH_CYCLE_MS,
@@ -140,6 +145,34 @@ function clamp01(value: number) {
 
 function easeOutCubic(value: number) {
   return 1 - ((1 - value) ** 3);
+}
+
+/**
+ * Normalised reel travel, from 0 at the start of a spin to 1 when it lands.
+ *
+ * A reel runs at a constant speed for most of its spin and only decelerates at the end,
+ * which is how a physical reel behaves. Easing across the whole spin instead would make a
+ * long spin look like it is braking from the first frame. Velocity is continuous at the
+ * hand-over: a cubic ease-out leaves its segment three times faster than its average, so
+ * that segment is given exactly a third of the speed-time it would need at constant rate.
+ */
+function reelTravelCurve(progress: number) {
+  const hold = MOTION.spinHoldFraction;
+  const constantRate = 1 / (hold + ((1 - hold) / 3));
+  if (progress <= hold) return constantRate * progress;
+  const settle = (progress - hold) / (1 - hold);
+  return (constantRate * hold) + ((constantRate * (1 - hold) / 3) * easeOutCubic(settle));
+}
+
+/**
+ * Whole grid cycles a reel covers, chosen so every reel spins at the same speed however
+ * long it runs. It stays a whole number of cycles so the reel still lands grid-aligned.
+ */
+function reelTravelCycles(durationMs: number) {
+  const hold = MOTION.spinHoldFraction;
+  const constantRate = 1 / (hold + ((1 - hold) / 3));
+  const cycles = (MOTION.spinCyclesPerSecond * (durationMs / 1_000)) / constantRate;
+  return Math.max(2, Math.round(cycles));
 }
 
 function pulseEnvelope(progress: number) {
@@ -712,22 +745,25 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         const spinning = currentPhase === 'spinning' && !shouldReduceMotion;
 
         const teaseSpeed = cycle * MOTION.anticipationCyclesPerSecond / 1_000;
+        const timing = currentTiming ?? FALLBACK_TIMING;
         for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {
-          const reelDuration = MOTION.reelBaseMs + columnIndex * MOTION.reelStaggerMs;
+          const reelDuration = timing.reelDurationMs[columnIndex]
+            ?? timing.reelDurationMs.at(-1)
+            ?? FALLBACK_TIMING.reelDurationMs[0];
           // An anticipated reel keeps running at a slow constant rate until its settle
           // window opens. Both segments read from the same committed stop position.
-          const holdUntil = Math.max(0, (currentTiming?.reelStopMs[columnIndex] ?? reelDuration) - reelDuration);
+          const holdUntil = Math.max(0, (timing.reelStopMs[columnIndex] ?? reelDuration) - reelDuration);
           const teasing = spinning && elapsed < holdUntil;
           const reelProgress = spinning ? clamp01((elapsed - holdUntil) / reelDuration) : 1;
-          const totalTravel = cycle * (2 + (columnIndex % 3));
+          const totalTravel = cycle * reelTravelCycles(reelDuration);
           const teaseTravel = holdUntil * teaseSpeed;
           // Re-align the settle travel so the reel still lands on an exact grid boundary.
           const settleTravel = totalTravel + ((cycle - (teaseTravel % cycle)) % cycle);
           const traveled = teasing
             ? elapsed * teaseSpeed
-            : teaseTravel + settleTravel * easeOutCubic(reelProgress);
+            : teaseTravel + (settleTravel * reelTravelCurve(reelProgress));
           const reelOffset = reelProgress >= 1 ? 0 : traveled % cycle;
-          const landingProgress = clamp01((reelProgress - 0.76) / 0.24);
+          const landingProgress = clamp01((reelProgress - 0.88) / 0.12);
           const landingReaction = spinning ? pulseEnvelope(landingProgress) : 0;
           const landingBounce = spinning ? -Math.sin(landingProgress * Math.PI) * cell * 0.035 : 0;
           const firstCopy = spinning ? -currentGrid.length : 0;
@@ -746,12 +782,12 @@ export function ReelCanvas({ grid, phase, winningCells = [], winningPaths = [], 
         }
         app.stage.addChild(content);
 
-        if (spinning && currentTiming?.hasAnticipation) {
-          drawAnticipation(app.stage, currentGrid, currentTiming, startX, startY, gap, cell, columns, elapsed);
+        if (spinning && timing.hasAnticipation) {
+          drawAnticipation(app.stage, currentGrid, timing, startX, startY, gap, cell, columns, elapsed);
         }
 
         if (spinning) {
-          const lastDuration = currentTiming?.reelStopMs.at(-1) ?? (MOTION.reelBaseMs + (columns - 1) * MOTION.reelStaggerMs);
+          const lastDuration = timing.reelStopMs.at(-1) ?? FALLBACK_TIMING.presentationMs;
           const activeStrength = 1 - clamp01(elapsed / lastDuration);
           const shutterY = startY + boardHeight * (0.3 + ((elapsed * 0.0007) % 0.4));
           app.stage.addChild(new Graphics().rect(startX, shutterY, boardWidth, 2).fill({ color: PALETTE.amber, alpha: 0.12 + activeStrength * 0.2 }));

@@ -6,7 +6,7 @@ import {
   type WinningPath,
 } from '../renderer/ReelCanvas';
 import type { AudioPreviewCue, AudioSettings, AudioStatus } from '../audio/types';
-import type { SpinTiming } from '../presentation/spin-timing';
+import type { SpinSpeed, SpinTiming } from '../presentation/spin-timing';
 import { playRecordNet, playRecordRtp, type PlayRecord } from '../presentation/play-record';
 import { classifyWin } from '../presentation/win-tier';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
@@ -79,6 +79,9 @@ export interface PrototypeProps {
   insufficientCredits?: boolean;
   /** Browser-local running record of ordinary play. Never shared between visitors. */
   playRecord?: PlayRecord;
+  /** How long the reels are displayed running. Presentation only. */
+  spinSpeed?: SpinSpeed;
+  onToggleSpinSpeed?: () => void;
   /** Virtual-credit cost of entering each route directly, at the current wager. */
   featureBuyPrices?: Readonly<Record<BonusRoute, number>>;
   onBuyFeature?: (route: BonusRoute) => void;
@@ -346,7 +349,20 @@ export function Prototype(props: PrototypeProps) {
           <Stat label="Last win" value={`${formatCredits(props.lastWin)} VC`} tone="cyan" />
         </dl>
         <div className="dp-control-deck">
+          <div className="dp-deck-lead">
           <div className="dp-wager-controls"><span>Wager</span><button aria-label="Decrease wager" type="button" onClick={() => props.onScaleWager('down')} disabled={wagerControlsDisabled}>−</button><output>{formatCredits(props.totalWager)} VC</output><button aria-label="Increase wager" type="button" onClick={() => props.onScaleWager('up')} disabled={wagerControlsDisabled}>+</button></div>
+            {props.onToggleSpinSpeed && (
+              <button
+                className={`dp-turbo-button${props.spinSpeed === 'turbo' ? ' dp-turbo-button--on' : ''}`}
+                type="button"
+                aria-pressed={props.spinSpeed === 'turbo'}
+                onClick={props.onToggleSpinSpeed}
+                title="Shorten the reel presentation. The result is unchanged."
+              >
+                Turbo
+              </button>
+            )}
+          </div>
           <button
             className="dp-spin-button"
             type="button"

@@ -10,6 +10,7 @@ Defuse Protocol is a playable, original educational slot-machine simulator with 
 The working prototype includes:
 
 - a five-reel, three-row game with 20 fixed paylines;
+- a default reel presentation of 1.94 seconds with a turbo option at 0.52 seconds, remembered per browser and identical in result;
 - explicit circular reel strips, a declared paytable, WILD substitution, and CORE scatter entry;
 - deterministic `mulberry32-v1` randomness with canonical seeds and replay metadata;
 - Relay Alpha and Relay Bravo feature routes, automatic free spins with Pause/Resume, retriggers, and a 30-spin award cap;

@@ -57,8 +57,18 @@ describe('audio cue planning', () => {
     const plan = createSpinCuePlan(false, timing);
     const latches = plan.filter((item) => item.cue.startsWith('reel-latch'));
     expect(latches.map((item) => item.delayMs)).toEqual([...timing.reelStopMs]);
-    // Reels 3, 4 and 5 all wait on a possible third Signal Core.
-    expect(plan.filter((item) => item.cue === 'spin-drive')).toHaveLength(4);
+    // Reels 3, 4 and 5 all wait on a possible third Signal Core, and each held reel is
+    // marked by its own pass of the mechanism as the hold begins.
+    const drives = plan.filter((item) => item.cue === 'spin-drive');
+    for (const reel of [2, 3, 4]) {
+      expect(drives.some((item) => item.delayMs === timing.reelStopMs[reel - 1] + 40)).toBe(true);
+    }
+    // The mechanism never falls silent while a reel is still turning.
+    const driveTimes = [...new Set(drives.map((item) => item.delayMs))].sort((a, b) => a - b);
+    for (let index = 1; index < driveTimes.length; index += 1) {
+      expect(driveTimes[index] - driveTimes[index - 1]).toBeLessThanOrEqual(700);
+    }
+    expect(timing.reelStopMs.at(-1)! - driveTimes.at(-1)!).toBeLessThanOrEqual(700);
     expect(plan.map((item) => item.delayMs)).toEqual([...plan].map((item) => item.delayMs).sort((a, b) => a - b));
   });
 
