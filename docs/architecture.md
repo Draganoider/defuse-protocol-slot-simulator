@@ -120,13 +120,16 @@ A completed simulation response contains observed aggregate statistics, requeste
 
 The prototype uses one worker. Parallel workers may be introduced later only with a documented stream-partitioning strategy that preserves reproducibility.
 
-### Development-only cheat boundary
+### Cheat boundary
 
-The development UI can import `createDeveloperCheatBonus` directly from the isolated `dev-tools` module. The factory creates a marked 3-, 4-, or 5-CORE bonus offer without consuming RNG. It is intentionally absent from the public engine index, ordinary spin generation, and simulation.
+The UI imports `createDeveloperCheatBonus` from the isolated `dev-tools` module. The factory creates a marked 3-, 4-, or 5-CORE bonus offer without consuming RNG. It is intentionally absent from the public engine index, ordinary spin generation, and simulation.
 
 Sessions and resulting feature spins retain developer-generated metadata so the UI can disclose their origin. When the feature ends, the session returns to an ordinary base state. Simulated statistics never call the cheat factory.
 
-Production builds pass a false development flag and expose no callable cheat factory through the normal engine boundary. The current presentation hardening caveat is tracked only in the [prototype QA report](qa-report.md).
+The menu ships in every build, including the published one. The boundary that matters is not
+visibility but provenance: the factory stays out of the public engine index, out of ordinary spin
+generation, and out of simulation, and a forced result stays marked so it can never be presented
+as an ordinary spin or counted in observed statistics.
 
 ## Spin lifecycle and data flow
 
@@ -199,7 +202,7 @@ The current Vitest suite contains 45 tests across eight files, including the exi
 
 Seventeen Playwright flows now verify that the development app remains visible without runtime errors, an ordinary committed spin locks controls and preserves its result/provenance through presentation, Space requests exactly one eligible base spin, the Spin control retains a stable document position through wins, a winning result exposes its exact line ledger and prominent committed total, animated paylines advance once and clear after their sequence, and the Audio console previews cues and persists validated preferences including the feature-music level. They also cover deterministic big and major win celebrations, both Alpha and Bravo route environments, a complete feature-to-summary-to-base lifecycle, automatic feature spins with usable Pause/Resume and wager locks, a 390 px viewport without document overflow, diagnostics and burst-input resource bounds, reduced-motion stability, and identical deterministic result/provenance across motion preferences. Manual live-browser review covers all three approved environments, the complete symbol family, payline treatment, the CORE texture, both route states, and the completed-feature summary.
 
-Further coverage should add complete keyboard traversal, paytable/Lab dialog behavior, visual-regression baselines for all approved symbols, production deployment, and broader supported-browser checks. Public builds must continue to contain no credentials, local paths, unlicensed assets, generated dependency/build directories, or development-cheat presentation strings.
+Further coverage should add complete keyboard traversal, paytable/Lab dialog behavior, visual-regression baselines for all approved symbols, production deployment, and broader supported-browser checks. Public builds must continue to contain no credentials, local paths, unlicensed assets, or generated dependency/build directories.
 
 Simulation convergence tests can detect major regressions, but probabilistic tolerance tests do not replace exact unit tests or theoretical analysis.
 

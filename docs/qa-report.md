@@ -41,15 +41,23 @@ full route completion, Lab interaction, and broader browser coverage remain reco
 
 ## Findings
 
-### Resolved P2 — production bundle retained development cheat labels
+### Superseded P2 — production bundle retained development cheat labels
 
-**Reproduction:** Run `npm run build`, then search `dist/assets/index-*.js` for
-`DEV CHEATS` or `Force 3 CORE`.
+**Original finding:** a production build contained the `DEV CHEATS` and `Force 3 CORE`
+labels. The cheat presentation was moved into a development-gated lazy module, and a
+production build then contained no cheat labels and no `DevCheats` chunk.
 
-The cheat presentation now lives in a development-gated lazy module. Development builds
-retain the full menu for forced 3-, 4-, and 5-CORE testing. A production build and an
-explicit search of `dist/assets/` contain none of the cheat labels and generate no
-`DevCheats` chunk. The cheat factory remains absent from the public engine index.
+**Reversed deliberately on 2026-08-17.** The project owner chose to ship the menu in every
+build so the feature can be demonstrated on the published site. The gate was removed and the
+`DevCheats` chunk is expected in `dist/assets/`. This is a considered trade-off rather than a
+regression: the simulator uses virtual credits only, the menu states what it does, and the
+provenance boundary that protects the mathematics is unchanged — the factory is still absent
+from the public engine index, still consumes no randomness, still marks its results
+`developerGenerated`, still labels the replay `DEV-FORCED-n-CORE`, and is still excluded from
+simulation. A forced feature therefore cannot be mistaken for an ordinary spin or counted in
+observed statistics. Anyone repackaging this project for a context where a reachable cheat
+control is unacceptable should restore the `import.meta.env.DEV` gate in
+`src/ui/Prototype.tsx` and `src/App.tsx`.
 
 ### Resolved P3 — wager controls remained enabled during an active feature
 
@@ -247,16 +255,18 @@ Fresh-browser console and page-error capture reported no warnings or errors.
 
 ## Production cheat boundary
 
-The production build contains no `createDeveloperCheatBonus` reference, the normal
-engine entry point does not export it, and the development-only presentation strings
-are pruned from production output. Development builds intentionally retain the menu for
-QA fixtures.
+The menu ships in every build by decision. The normal engine entry point still does not
+export `createDeveloperCheatBonus`, so no ordinary consumer of the engine can reach it, and
+forced results stay marked and excluded from simulation. A production build served under the
+GitHub Pages base path was verified on 2026-08-17: the menu is present, forcing four Cores
+opened the route popup over the reels, and the replay identifier read `DEV-FORCED-4-CORE`.
 
 ## Original audio QA
 
 The repository contains twenty 44.1 kHz Ogg Vorbis files produced entirely by
-`scripts/generate-audio.mjs`: one stereo 10-second ambience loop, two stereo 12-second
-route-music loops, and seventeen mono effects. The generator uses explicit oscillators,
+`scripts/generate-audio.mjs` and `scripts/music-engine.mjs`: one stereo 26.7-second
+base-operation loop, two stereo route-music loops of 22.9 and 27.7 seconds, and seventeen
+mono effects. The generator uses explicit oscillators,
 envelopes, and deterministic periodic components,
 conservative peak normalization, temporary PCM intermediates, and metadata-free Vorbis
 encoding. No recordings, sample packs, game audio, voice material, or network inputs are

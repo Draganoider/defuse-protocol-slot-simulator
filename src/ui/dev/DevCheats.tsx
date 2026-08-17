@@ -6,8 +6,9 @@ export interface DevCheatsProps {
 }
 
 /**
- * Development-only controls. Prototype loads this module behind import.meta.env.DEV
- * so its UI and labels are excluded from production bundles.
+ * Clearly labeled controls that request a forced feature outcome. These ship in every
+ * build. A forced result is still produced by the engine, is marked developer generated,
+ * and is excluded from simulation, so it cannot misrepresent the declared mathematics.
  */
 export default function DevCheats({ open, setOpen, onForceBonus, onReset }: DevCheatsProps) {
   return (

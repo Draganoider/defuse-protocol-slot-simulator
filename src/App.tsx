@@ -369,7 +369,7 @@ export function App() {
   }, [phase, session.phase]);
 
   const handleForceBonus = useCallback(async (cores: 3 | 4 | 5) => {
-    if (!import.meta.env.DEV || session.phase !== 'base' || phase === 'spinning') return;
+    if (session.phase !== 'base' || phase === 'spinning') return;
     const { createDeveloperCheatBonus } = await import('./engine/dev-tools');
     setSession(createDeveloperCheatBonus(session, cores));
     setGrid(forcedCoreGrid(cores));
@@ -421,7 +421,7 @@ export function App() {
       reducedMotion={reducedMotion}
       audioSettings={audioSettings}
       audioStatus={audioStatus}
-      devCheatsEnabled={import.meta.env.DEV}
+      devCheatsEnabled
       onSpin={handleSpin}
       onChooseBonus={handleChooseBonus}
       onToggleBonusAutoplay={() => setBonusAutoplay((current) => !current)}

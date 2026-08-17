@@ -15,9 +15,10 @@ import { WinCelebration } from './WinCelebration';
 import { useCountUp } from './useCountUp';
 import './prototype.css';
 
-const DevCheats = import.meta.env.DEV
-  ? lazy(() => import('./dev/DevCheats'))
-  : null;
+// Shipped in every build, including production, as a deliberate project decision: the
+// simulator uses virtual credits only and a forced result stays marked as developer
+// generated, so the menu is a demonstration aid rather than a hidden advantage.
+const DevCheats = lazy(() => import('./dev/DevCheats'));
 
 export type PresentationPhase = 'ready' | 'spinning' | 'result' | 'bonus-choice' | 'bonus';
 export type BonusRoute = 'alpha' | 'bravo';
@@ -83,7 +84,7 @@ export interface PrototypeProps {
   reducedMotion?: boolean;
   audioSettings: AudioSettings;
   audioStatus: AudioStatus;
-  /** Development builds only; shows controls that request a forced feature outcome. */
+  /** Shows the clearly labeled controls that request a forced feature outcome. */
   devCheatsEnabled?: boolean;
   onSpin: () => void;
   onChooseBonus: (route: BonusRoute) => void;
@@ -372,7 +373,7 @@ export function Prototype(props: PrototypeProps) {
       </section>
 
       <section className="dp-provenance" aria-label="Result provenance"><span>Configuration: <code>{props.configId ?? 'pending configuration'}</code></span><span>Seeded results can be replayed.</span><button type="button" onClick={props.onResetSession}>Reset virtual-credit session</button></section>
-      {import.meta.env.DEV && props.devCheatsEnabled && DevCheats && (
+      {props.devCheatsEnabled && (
         <Suspense fallback={null}>
           <DevCheats open={cheatOpen} setOpen={setCheatOpen} onForceBonus={props.onForceBonus} onReset={props.onResetSession} />
         </Suspense>

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This plan defines the acceptance checks for the playable Defuse Protocol prototype. It covers deterministic mathematics, browser behavior, Relay Selection and completion, payout-tier VFX, route environments/music, presentation audio, simulation reporting, and the development-only cheat boundary.
+This plan defines the acceptance checks for the playable Defuse Protocol prototype. It covers deterministic mathematics, browser behavior, Relay Selection and completion, payout-tier VFX, route environments/music, presentation audio, simulation reporting, and the cheat provenance boundary.
 
 ## Quality gates
 
@@ -54,13 +54,13 @@ The prototype is acceptable when all of the following pass:
 - Applied multipliers are reflected in the authoritative payout breakdown.
 - Bravo state and final payout are present in replay metadata and visible status.
 
-## Development cheat menu
+## Cheat menu
 
-- The menu is visibly labeled `DEV CHEATS` and is available only when the development flag is true.
+- The menu is visibly labeled `DEV CHEATS` and states that forced results are marked and do not alter RTP rules.
 - It offers forced three-, four-, and five-CORE bonus fixtures plus session reset.
 - Forced state is visibly marked and carries developer-generated metadata.
 - A forced trigger is not counted as an ordinary random paid spin or included silently in observed statistics.
-- Production builds do not expose an enabled cheat path.
+- Forced results remain marked as developer-generated and are excluded from simulation in every build.
 - Ordinary spin and simulation APIs do not accept force-result parameters.
 
 ## Lab and simulation
