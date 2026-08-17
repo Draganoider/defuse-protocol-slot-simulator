@@ -183,7 +183,7 @@ button:focus-visible { outline-color: #e0bd68; }
   /* Always mounted at a fixed height above the reels: the confirmed total is the most
      important number on the cabinet, and reserving its space keeps every control below
      it at a stable document position when a win lands. */
-  min-height: clamp(62px, 8.4vw, 104px);
+  min-height: clamp(54px, 6.6vw, 82px);
   padding: 9px clamp(18px, 3vw, 30px) 11px;
   border-block: 1px solid #d8b25c;
   color: #f4df9c;
@@ -209,7 +209,7 @@ button:focus-visible { outline-color: #e0bd68; }
 }
 .dp-win-total strong {
   justify-self: end;
-  font-size: clamp(2.1rem, 5.6vw, 3.9rem);
+  font-size: clamp(1.9rem, 4.4vw, 3.1rem);
   font-stretch: condensed;
   font-weight: 900;
   letter-spacing: -.035em;
@@ -225,19 +225,17 @@ button:focus-visible { outline-color: #e0bd68; }
 .dp-win-total--strong { border-color: #e8c771; }
 .dp-win-total--big,
 .dp-win-total--major { background: linear-gradient(90deg, rgb(24 27 23 / .96), rgb(82 59 25 / .97), rgb(24 27 23 / .96)); }
-.dp-win-total--big strong { font-size: clamp(2.4rem, 6.4vw, 4.5rem); }
-.dp-win-total--major strong { color: #ffe6a4; font-size: clamp(2.6rem, 7vw, 4.9rem); }
-/* Idle keeps the exact same box so the reels never move between spins. */
+.dp-win-total--big strong { font-size: clamp(2.1rem, 5vw, 3.5rem); }
+.dp-win-total--major strong { color: #ffe6a4; font-size: clamp(2.2rem, 5.4vw, 3.8rem); }
+/* Between results the slot draws nothing but still occupies its box, so a return arrives
+   into stable space instead of collapsing a visible bar, and the controls below never move. */
 .dp-win-total--idle {
-  border-color: #5d5e54;
-  color: #8d8878;
-  background: #242821;
+  border-color: transparent;
+  background: rgb(20 23 20 / .96);
   box-shadow: none;
-  text-shadow: none;
   animation: none;
 }
-.dp-win-total--idle span { color: #7d7869; }
-.dp-win-total--idle small { color: #6f6a5d; }
+.dp-win-total--idle > * { visibility: hidden; }
 
 .dp-win-celebration {
   position: absolute;

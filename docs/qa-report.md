@@ -184,7 +184,7 @@ the same board geometry as the symbols under it. The sequencing decision moved i
 presentation cap, sequence completion, and the reduced-motion hold. Captured frames confirm one
 aligned trace with contact marks on the paying cells and a clean clear after the sequence.
 
-### Open P3 — the confirmed-total slot collapses when a win lands
+### Resolved P3 — the confirmed-total slot collapsed when a win landed
 
 **Reproduction:** win on any spin and watch the total slot above the reels.
 
@@ -209,9 +209,13 @@ candidates, cheapest first:
    covering part of the top symbol row — the treatment an earlier build already rejected for
    obscuring the final symbols.
 
-Option 1 most likely satisfies both constraints. Whichever is chosen, the existing check that the
-slot keeps one height between idle and winning states and that the Spin control does not move
-across a winning spin must still pass.
+Option 1 was taken. Between results the slot keeps its box but paints nothing: its border,
+background shadow, and entrance animation are dropped, its background matches the reel bezel so
+the space reads as headroom rather than an empty bar, and its contents are hidden. A return then
+arrives into stable space instead of collapsing a visible bar. The reserved height was also
+reduced from 104 px to 82 px, with the tier font sizes capped to fit. The checks that the slot
+keeps one height between idle and winning states and that the Spin control does not move across a
+winning spin both still pass.
 
 ## Play record and confirmed-total placement QA
 

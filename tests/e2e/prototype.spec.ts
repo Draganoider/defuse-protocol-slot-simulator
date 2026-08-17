@@ -554,9 +554,9 @@ test('the confirmed total sits above the reels and never moves the controls', as
   const reels = page.locator('.dp-reel-frame');
   const spin = page.getByRole('button', { name: 'Spin', exact: true });
 
-  // The slot is always mounted, above the reels, and reads as idle before any result.
-  await expect(total).toBeVisible();
-  await expect(total.locator('strong')).toHaveText('—');
+  // The slot holds its box above the reels but states nothing before a result.
+  await expect(total).toBeAttached();
+  await expect(total.locator('strong')).toBeHidden();
   const idle = await total.boundingBox();
   const reelBox = await reels.boundingBox();
   expect(idle!.y + idle!.height).toBeLessThanOrEqual(reelBox!.y + 1);
@@ -573,6 +573,7 @@ test('the confirmed total sits above the reels and never moves the controls', as
   }
   expect(foundWin).toBe(true);
 
+  await expect(total).toBeVisible();
   await expect(total.locator('strong')).toContainText(/^\+[\d,]+$/);
   const won = await total.boundingBox();
   expect(Math.round(won!.height)).toBe(Math.round(idle!.height));
