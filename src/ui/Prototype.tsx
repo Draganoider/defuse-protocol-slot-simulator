@@ -363,16 +363,18 @@ export function Prototype(props: PrototypeProps) {
                   ? props.bonusAutoplay === false ? 'Resume auto spins' : 'Pause auto spins'
                   : 'Spin'}
           </button>
-          <button
-            className="dp-buy-button"
-            type="button"
-            onClick={() => setBuyOpen(true)}
-            disabled={buyDisabled}
-            title={buyDisabled ? undefined : 'Enter a relay route immediately for virtual credits'}
-          >
-            Buy feature
-          </button>
-          <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed} disabled={choosingRoute}>New seed</button></div>
+          <div className="dp-deck-side">
+            <button
+              className="dp-buy-button"
+              type="button"
+              onClick={() => setBuyOpen(true)}
+              disabled={buyDisabled}
+              title={buyDisabled ? undefined : 'Enter a relay route immediately for virtual credits'}
+            >
+              Buy feature
+            </button>
+            <div className="dp-replay"><span>Seed <code>{props.seed}</code></span><span>{props.replayId ? `Replay ${props.replayId}` : 'Replay ready'}</span><button type="button" onClick={props.onResetSeed} disabled={choosingRoute}>New seed</button></div>
+          </div>
         </div>
         <section
           key={`${props.phase}-${props.replayId ?? props.seed}-${props.lastWin}`}

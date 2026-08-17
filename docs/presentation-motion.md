@@ -43,9 +43,12 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 Ordinary symbol textures carry no three-letter abbreviations. The functional `CORE` and `WILD` marks use condensed industrial nameplates, while the accessible HTML ledger supplies full symbol names and exact per-line virtual-credit values.
 
 The confirmed total sits above the reels, where it is read first. Its slot is always mounted at a
-fixed height and shows a muted idle state between results, so a win changes what the slot says
-without changing its size. The scoreboard and control deck remain directly below the reels in
-every base-game state, and feedback and line ledgers render after that fixed control region.
+fixed height, so a win changes what the slot says without changing its size. Between results it is
+an unlit recess in the cabinet's own grey, not a black gap and not a styled empty bar; a return
+lights the panel and lifts its figures into place rather than resizing the box. The scoreboard and control deck remain directly below the reels in
+every base-game state, and feedback and line ledgers render after that fixed control region. The
+deck is a three-column grid so the Spin control stays on the centre line of the cabinet whatever
+flanks it; secondary controls group to its right rather than displacing it.
 Together these keep the Spin button at the same document coordinate before and after a win, which
 is verified by measuring the control's position across a winning spin.
 
