@@ -366,14 +366,19 @@ for (const route of ['Alpha', 'Bravo'] as const) {
     await pauseAutospins.click();
     const resumeAutospins = page.getByRole('button', { name: 'Resume auto spins' });
     await expect(resumeAutospins).toBeEnabled();
+    // The paused note only appears once a presentation has settled, so reaching it means
+    // the feature is idle. Whether an automatic spin already ran before the pause landed
+    // is a race with the autoplay timer, so compare the replay identifier against itself.
     await expect(page.locator('#dp-result-feedback')).toContainText('Automatic spins paused');
-    await page.waitForTimeout(800);
-    await expect(page.getByText('Replay DEV-FORCED-3-CORE')).toBeVisible();
+    const replayWhilePaused = page.locator('.dp-replay span').nth(1);
+    const pausedReplay = await replayWhilePaused.innerText();
+    await page.waitForTimeout(1_200);
+    expect(await replayWhilePaused.innerText()).toBe(pausedReplay);
 
     await resumeAutospins.click();
     await expect(page.getByRole('button', { name: 'Presenting result…' })).toBeDisabled();
-    await expect(page.locator('#dp-result-feedback')).toContainText('Presenting committed result');
     await expect(pauseAutospins).toBeEnabled();
+    await expect(replayWhilePaused).not.toHaveText(pausedReplay);
     await pauseAutospins.click();
     await expect(resumeAutospins).toBeEnabled();
     await expect(featureStatus).toBeVisible();
