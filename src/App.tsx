@@ -246,6 +246,10 @@ export function App() {
   const [spinTiming, setSpinTiming] = useState<SpinTiming>();
   const [playRecord, setPlayRecord] = useState<PlayRecord>(loadPlayRecord);
   const [spinSpeed, setSpinSpeed] = useState<SpinSpeed>(loadSpinSpeed);
+  // The session commits the next feature state before presentation begins, so the meter
+  // reads a copy that only advances at the reveal. Showing the live state would announce
+  // a multiplier step, a collected charge, or a consumed shield before the reels land.
+  const [presentedBonus, setPresentedBonus] = useState<PrototypeBonus>();
   const presentationTimer = useRef<number | undefined>(undefined);
   const bonusAutoplayTimer = useRef<number | undefined>(undefined);
   const simulationWorker = useRef<Worker | undefined>(undefined);
@@ -313,7 +317,11 @@ export function App() {
     });
   }, []);
 
-  const showResult = useCallback((result: SpinResult, nextPhase: PresentationPhase) => {
+  const showResult = useCallback((
+    result: SpinResult,
+    nextPhase: PresentationPhase,
+    onRevealed?: () => void,
+  ) => {
     // The reel plan is read from the committed result. Anticipation only changes how long
     // a reel is displayed running; it never selects, delays or alters a landing position.
     const timing = planSpinTiming({
@@ -355,6 +363,7 @@ export function App() {
         enteredFeature: Boolean(result.bonusOffer),
         developerGenerated: result.developerGenerated,
       });
+      onRevealed?.();
     });
   }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion, spinSpeed, trackSpin]);
 
@@ -376,7 +385,12 @@ export function App() {
       featureTotalWin.current += transition.result.totalPayout;
       featureSpinsPlayed.current += 1;
       setSession(transition.session);
-      showResult(transition.result, transition.session.phase === 'bonus' ? 'bonus' : 'result');
+      const revealedBonus = bonusView(transition.session);
+      showResult(
+        transition.result,
+        transition.session.phase === 'bonus' ? 'bonus' : 'result',
+        () => setPresentedBonus(revealedBonus),
+      );
       if (transition.session.phase !== 'bonus' && activeRoute) {
         setFeatureSummary({ route: activeRoute, totalWin: featureTotalWin.current, spinsPlayed: featureSpinsPlayed.current });
         finishFeatureAudio();
@@ -427,6 +441,7 @@ export function App() {
     setBalance((current) => current - purchase.cost);
     trackSpin({ wager: purchase.cost, payout: 0, paid: true, enteredFeature: true });
     setSession(purchase.session);
+    setPresentedBonus(bonusView(purchase.session));
     setLastWin(0);
     setPhase('bonus');
   }, [balance, featureBuyPrices, phase, playRouteAudio, session, trackSpin]);
@@ -441,7 +456,9 @@ export function App() {
     setEnvironmentRoute(route);
     setBonusAutoplay(true);
     lastAcceptedSpinAt.current = Number.NEGATIVE_INFINITY;
-    setSession(chooseBonusRoute(session, route));
+    const entered = chooseBonusRoute(session, route);
+    setSession(entered);
+    setPresentedBonus(bonusView(entered));
     setPhase('bonus');
   }, [playRouteAudio, session]);
 
@@ -482,6 +499,7 @@ export function App() {
     featureSpinsPlayed.current = 0;
     setEnvironmentRoute(undefined);
     setFeatureSummary(undefined);
+    setPresentedBonus(undefined);
     setSession(createSession({ seed: nextSeed, wager: session.wager }));
     setBalance(STARTING_BALANCE);
     setLastWin(0);
@@ -573,8 +591,13 @@ export function App() {
     }));
   }, [session.bonusState, session.config, setFeatureIntensity]);
 
+  // Cleared once the feature is over so a finished run cannot leave a stale meter.
+  useEffect(() => {
+    if (!session.bonusState) setPresentedBonus(undefined);
+  }, [session.bonusState]);
+
   const displayedReplay = forcedFixture ? lastReplayId : lastReplayId ?? `${session.rng.algorithm}:${session.rng.position}`;
-  const bonus = useMemo(() => bonusView(session), [session]);
+  const bonus = presentedBonus;
 
   return (
     <Prototype

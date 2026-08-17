@@ -248,11 +248,30 @@ finish settling` verifies that a 244 credit return shows a 1,980 balance, a zero
 idle total, and no record line during presentation, then 2,224, 244, and a recorded paid spin
 afterwards.
 
+### Resolved P2 — the feature meter announced a result before the reels landed
+
+**Reproduction:** enter a route and watch spins left, the multiplier, and the protection line
+while the reels are still running.
+
+Deferring the balance, last win, and play record was not enough. The feature meter read
+`session.bonusState` directly, and the session commits the next bonus state before presentation
+begins. Sampling every 150 ms across a Relay Bravo spin showed spins left dropping from 10 to 9,
+the multiplier stepping 1x to 2x, and protection arming at the instant presentation started,
+about 1.8 seconds before the reels stopped. A climbing multiplier states outright that the spin
+won. The longer default presentation made an existing leak obvious rather than creating it.
+
+The meter now reads a copy that advances only at the reveal. Re-sampling showed every
+transition, including a retrigger from 10 to 13 spins and the 2x, 3x, 5x ladder, landing exactly
+on a presentation boundary. `the feature meter does not advance while the reels are still
+running` samples the meter each frame and requires it to be constant inside every presentation
+window, while still changing between spins so the check cannot pass vacuously.
+
 ## Spin speed QA
 
 The reel presentation was extended because the original 520 ms cut left no room for the reels
-to read as spinning, and made automatic feature spins feel hurried. The default is now 1,940 ms
-and the original timing is retained as an explicit turbo toggle.
+to read as spinning, and made automatic feature spins feel hurried. The default is 1,470 ms after a first pass at
+1,940 ms read as too slow in review, and the original timing is retained as an explicit turbo
+toggle.
 
 Unit tests cover the speed profiles being ordered shorter at every stage, the award hold staying
 shorter than the trigger hold in both, a plan reporting the speed it was built for and applying
@@ -261,8 +280,9 @@ of undeclared speed values. A browser flow times a real spin at each speed, requ
 to land between 1.5 and 3.5 seconds, requires turbo to be at least 700 ms shorter, and confirms
 the choice survives a reload.
 
-Live review measured five consecutive automatic feature spins at 1,958, 1,960, 1,961, 1,962, and
-1,920 ms against the designed 1,940 ms. A captured frame shows reels four and five still turning
+Live review at the first pass measured five consecutive automatic feature spins at 1,958, 1,960,
+1,961, 1,962, and 1,920 ms against the designed 1,940 ms, confirming the plan drives the
+presentation exactly; the default was then shortened to 1,470 ms. A captured frame shows reels four and five still turning
 while the first three have landed, which the previous timing was too short to show.
 
 ## Adaptive feature music QA

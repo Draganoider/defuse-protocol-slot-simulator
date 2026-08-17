@@ -15,8 +15,8 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
 1. The engine returns the complete result and next deterministic session state.
 2. The application commits the final grid, payout, replay identifier, exact winning cells, and evaluated payline paths.
 3. The UI enters `spinning`; controls lock and the live region states that a committed result is being presented.
-4. Reels run at a constant speed and decelerate only at the end. At the default speed the first reel settles at 1,000 ms with a 200 ms stagger, so the fifth settles at 1,800 ms unless a reel is held for a possible trigger.
-5. At 1,940 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
+4. Reels run at a constant speed and decelerate only at the end. At the default speed the first reel settles at 750 ms with a 150 ms stagger, so the fifth settles at 1,350 ms unless a reel is held for a possible trigger.
+5. At 1,470 ms, or after the last held reel lands, the application enters the authoritative next phase: result, route choice, or active bonus.
 6. A layered amber trace follows the exact winning route while non-winning cells temporarily dim. Each line draws, holds briefly, and then advances once to the next line. Up to four lines are presented in payout order; the ledger retains the complete result.
    The trace is drawn only by the renderer that draws the reels, so it always uses the same
    board geometry as the symbols underneath it. `planWinSequence` owns which route is active
@@ -37,7 +37,12 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
    feature-spin interval, so every layer clears together. The confirmed-total bar and the
    celebration overlay share one counter, which eases in and out so a long count builds
    instead of resolving in its first third.
-8. The balance is debited by the stake when the spin starts. The award, the last-win figure, and the browser-local play record are applied only at the reveal, so no readout states the payout while the reels are still running. The committed result is unchanged; only its presentation waits.
+8. The balance is debited by the stake when the spin starts. The award, the last-win figure, the browser-local play record, and the feature meter are applied only at the reveal, so no readout states the outcome while the reels are still running. The committed result is unchanged; only its presentation waits.
+
+   The feature meter matters as much as the balance here. The session commits the next bonus
+   state before presentation begins, so reading it live would announce a multiplier step, a
+   collected charge, a consumed shield, or a retrigger a second or more before the reels landed.
+   The meter therefore reads a copy that only advances at the reveal.
 9. After the trace lands, a large `+N VC` total above the reels, a full-symbol-name payline ledger, and a grounded cabinet/background response confirm the same committed payout. Big and major tiers add a centered celebration overlay. CORE positions receive a short activation ring during bonus entry.
 
 Ordinary symbol textures carry no three-letter abbreviations. The functional `CORE` and `WILD` marks use condensed industrial nameplates, while the accessible HTML ledger supplies full symbol names and exact per-line virtual-credit values.
@@ -59,13 +64,13 @@ in force. `standard` is the default:
 
 | | Standard | Turbo |
 | --- | ---: | ---: |
-| First reel settles | 1,000 ms | 244 ms |
-| Stagger per reel | 200 ms | 47 ms |
-| Fifth reel settles | 1,800 ms | 432 ms |
-| Settle tail | 140 ms | 88 ms |
-| **Ordinary spin** | **1,940 ms** | **520 ms** |
-| Trigger hold per reel | 1,200 ms | 700 ms |
-| Award hold per reel | 700 ms | 420 ms |
+| First reel settles | 750 ms | 244 ms |
+| Stagger per reel | 150 ms | 47 ms |
+| Fifth reel settles | 1,350 ms | 432 ms |
+| Settle tail | 120 ms | 88 ms |
+| **Ordinary spin** | **1,470 ms** | **520 ms** |
+| Trigger hold per reel | 1,000 ms | 700 ms |
+| Award hold per reel | 600 ms | 420 ms |
 
 Turbo is the presentation the game shipped with. It is kept as an explicit choice rather than
 removed, because throughput is a legitimate preference, and it is a toggle beside the wager
@@ -88,14 +93,14 @@ keep spinning over silence. The cue plan is returned in time order.
 ## Scatter anticipation
 
 When the reels that have already settled hold exactly one Signal Core fewer than the trigger
-requires, every following reel keeps running for an extra hold before it settles: 1,200 ms at
+requires, every following reel keeps running for an extra hold before it settles: 1,000 ms at
 the default speed, 700 ms in turbo. The hold
 is cumulative, so a spin that lands both Cores on the opening reels holds reels three, four,
 and five in turn.
 
 Once the trigger is met the wait continues in a second, quieter form. A fourth and fifth Core
 raise the award from 10 to 13 to 16 Alpha spins, or 6 to 8 to 10 Bravo spins, so the remaining
-reels are held for a shorter hold, 700 ms by default, while that is still possible, and are released as soon as no
+reels are held for a shorter hold, 600 ms by default, while that is still possible, and are released as soon as no
 further Core could add anything. This form only ever applies to a spin that has already
 triggered — roughly one in 117 — so ordinary spins keep their short presentation. It is drawn in
 gold rather than amber and its extra pass of the reel mechanism is quieter, so the louder

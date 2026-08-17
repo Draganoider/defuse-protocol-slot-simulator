@@ -28,11 +28,11 @@ export interface SpinSpeedProfile {
  */
 export const SPIN_SPEEDS: Readonly<Record<SpinSpeed, SpinSpeedProfile>> = {
   standard: {
-    reelBaseMs: 1_000,
-    reelStaggerMs: 200,
-    anticipationHoldMs: 1_200,
-    awardAnticipationHoldMs: 700,
-    presentationTailMs: 140,
+    reelBaseMs: 750,
+    reelStaggerMs: 150,
+    anticipationHoldMs: 1_000,
+    awardAnticipationHoldMs: 600,
+    presentationTailMs: 120,
   },
   turbo: {
     reelBaseMs: 244,

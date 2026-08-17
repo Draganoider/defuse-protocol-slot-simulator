@@ -486,13 +486,13 @@ test('the default spin runs its full reel presentation and turbo shortens it', a
 
   // Long enough to read as a spin rather than a cut, without becoming a wait.
   const standard = await timeOneSpin();
-  expect(standard).toBeGreaterThan(1_500);
-  expect(standard).toBeLessThan(3_500);
+  expect(standard).toBeGreaterThan(1_100);
+  expect(standard).toBeLessThan(2_600);
 
   await turbo.click();
   await expect(turbo).toHaveAttribute('aria-pressed', 'true');
   const turboSpin = await timeOneSpin();
-  expect(turboSpin).toBeLessThan(standard - 700);
+  expect(turboSpin).toBeLessThan(standard - 500);
 
   // The choice is remembered for the next visit.
   await page.reload();
@@ -673,6 +673,51 @@ test('a bought route is confirmed, priced, and gated by the balance', async ({ p
 
   // Once the balance cannot cover the cheapest route the control is disabled outright.
   await expect(page.getByRole('button', { name: 'Buy feature' })).toBeDisabled();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
+test('the feature meter does not advance while the reels are still running', async ({ page }) => {
+  test.slow();
+  const runtimeErrors = collectRuntimeErrors(page);
+  await openPrototype(page, [1, 2], { qaTools: true });
+  const choice = await forceCoreChoice(page, 5);
+  await choice.getByRole('button', { name: /Relay Bravo/ }).click();
+  await expect(page.getByRole('region', { name: 'Relay Bravo status' })).toBeVisible();
+
+  // The session commits the next feature state before presentation begins, so a live meter
+  // would announce a multiplier step, a shield, or a retrigger before the reels landed.
+  const samples = await page.evaluate(() => new Promise<Array<{ presenting: boolean; meter: string }>>((resolve) => {
+    const out: Array<{ presenting: boolean; meter: string }> = [];
+    const start = performance.now();
+    const tick = () => {
+      const meter = document.querySelector('.dp-feature-meter');
+      out.push({
+        presenting: document.querySelector('.dp-spin-button')?.textContent?.trim() === 'Presenting result…',
+        meter: [
+          meter?.querySelector('.dp-feature-spins')?.textContent ?? '',
+          meter?.querySelector('.dp-multiplier')?.textContent ?? '',
+          meter?.querySelector('.dp-protect')?.textContent ?? '',
+        ].join('|'),
+      });
+      if (performance.now() - start < 9_000) requestAnimationFrame(tick);
+      else resolve(out);
+    };
+    requestAnimationFrame(tick);
+  }));
+
+  let presentations = 0;
+  for (let index = 1; index < samples.length; index += 1) {
+    if (!samples[index].presenting || samples[index - 1].presenting) continue;
+    const beforeSpin = samples[index - 1].meter;
+    presentations += 1;
+    for (let inside = index; inside < samples.length && samples[inside].presenting; inside += 1) {
+      expect(samples[inside].meter).toBe(beforeSpin);
+    }
+  }
+  expect(presentations).toBeGreaterThan(0);
+  // The meter must still advance between spins, or the check above proves nothing.
+  expect(new Set(samples.map((sample) => sample.meter)).size).toBeGreaterThan(1);
 
   expect(runtimeErrors).toEqual([]);
 });
