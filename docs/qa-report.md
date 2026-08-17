@@ -184,6 +184,35 @@ the same board geometry as the symbols under it. The sequencing decision moved i
 presentation cap, sequence completion, and the reduced-motion hold. Captured frames confirm one
 aligned trace with contact marks on the paying cells and a clean clear after the sequence.
 
+### Open P3 — the confirmed-total slot collapses when a win lands
+
+**Reproduction:** win on any spin and watch the total slot above the reels.
+
+Moving the total above the reels made its element always mounted so the controls below it
+cannot move. Its entrance animation was written for an element that only appeared on a win:
+`dp-win-total` runs with a 420 ms delay and `animation-fill-mode: both`, so the browser holds
+the 0% keyframe for the whole delay. Measured across a winning transition, the slot goes from
+the idle state at opacity 1 and 104 px tall to opacity 0 and `scaleY(0.55)` at 57 px for 420 ms,
+then springs to 1.08 and settles. On an always-mounted element that reads as the bar jumping
+away and back rather than arriving.
+
+Requested direction: the total should appear only when there is a return, with no styled but
+empty bar between results. That has to be reconciled with the rule that a result must not move
+the Spin control, which is why the slot is mounted at a fixed height in the first place. Three
+candidates, cheapest first:
+
+1. Keep the slot mounted and reserved, but make the idle state `visibility: hidden` so the space
+   is held without drawing an empty bar. The entrance animation then plays inside stable space.
+2. Keep it mounted and remove the delay and `both` fill, so it never holds an invisible collapsed
+   state; animate only the number rather than the bar.
+3. Position it over the top of the reel frame so it takes no layout space at all, at the cost of
+   covering part of the top symbol row — the treatment an earlier build already rejected for
+   obscuring the final symbols.
+
+Option 1 most likely satisfies both constraints. Whichever is chosen, the existing check that the
+slot keeps one height between idle and winning states and that the Spin control does not move
+across a winning spin must still pass.
+
 ## Play record and confirmed-total placement QA
 
 The browser-local play record is covered by unit tests for accumulation, free feature spins
@@ -198,6 +227,22 @@ The confirmed total moved above the reels so it is read before the reels themsel
 always mounted at a fixed height, so a Playwright check confirms the slot keeps the same height
 between its idle and winning states and that the Spin control does not move across a winning
 spin.
+
+### Resolved P2 — the scoreboard stated a payout before the reels settled
+
+**Reproduction:** spin with a winning seed and read the balance and last-win figures while the
+reels are still running.
+
+Balance, last win, and the browser-local play record were all applied the moment the engine
+committed the result, which is before presentation begins. Every one of them stated the payout
+while the reels were still turning, so the outcome was legible early.
+
+The stake now leaves the balance immediately, the way a cabinet debits before the reels run, and
+the award, the last-win figure, and the record entry are applied at the reveal instead. The
+committed result is unchanged; only the readouts wait. `a payout stays hidden until the reels
+finish settling` verifies that a 244 credit return shows a 1,980 balance, a zero last win, an
+idle total, and no record line during presentation, then 2,224, 244, and a recorded paid spin
+afterwards.
 
 ## Grounded production asset QA
 

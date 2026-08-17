@@ -37,7 +37,8 @@ PixiJS may emphasize supplied paths, cells, and CORE symbols, but it does not ev
    feature-spin interval, so every layer clears together. The confirmed-total bar and the
    celebration overlay share one counter, which eases in and out so a long count builds
    instead of resolving in its first third.
-8. After the trace lands, a large `+N VC` total above the reels, a full-symbol-name payline ledger, and a grounded cabinet/background response confirm the same committed payout. Big and major tiers add a centered celebration overlay. CORE positions receive a short activation ring during bonus entry.
+8. The balance is debited by the stake when the spin starts. The award, the last-win figure, and the browser-local play record are applied only at the reveal, so no readout states the payout while the reels are still running. The committed result is unchanged; only its presentation waits.
+9. After the trace lands, a large `+N VC` total above the reels, a full-symbol-name payline ledger, and a grounded cabinet/background response confirm the same committed payout. Big and major tiers add a centered celebration overlay. CORE positions receive a short activation ring during bonus entry.
 
 Ordinary symbol textures carry no three-letter abbreviations. The functional `CORE` and `WILD` marks use condensed industrial nameplates, while the accessible HTML ledger supplies full symbol names and exact per-line virtual-credit values.
 

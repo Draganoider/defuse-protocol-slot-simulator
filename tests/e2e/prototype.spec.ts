@@ -582,6 +582,51 @@ test('the confirmed total sits above the reels and never moves the controls', as
   expect(runtimeErrors).toEqual([]);
 });
 
+test('a payout stays hidden until the reels finish settling', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page);
+  // This seed commits a 244 credit return on the first spin at a 20 credit wager.
+  await openPrototype(page, [1, 0xf3]);
+
+  const readout = () => page.evaluate(() => {
+    const cells = [...document.querySelectorAll('.dp-scoreboard dd')].map((cell) => cell.textContent ?? '');
+    return {
+      balance: cells[0],
+      lastWin: cells[2],
+      total: document.querySelector('.dp-win-total strong')?.textContent ?? '',
+      record: document.querySelector('.dp-play-record-line')?.textContent ?? '',
+    };
+  });
+
+  await expect(page.locator('.dp-scoreboard dd').first()).toHaveText('2,000 VC');
+  const during = await page.evaluate(() => new Promise<{ balance: string; lastWin: string; total: string; record: string }>((resolve) => {
+    document.querySelector<HTMLButtonElement>('.dp-spin-button')!.click();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const cells = [...document.querySelectorAll('.dp-scoreboard dd')].map((cell) => cell.textContent ?? '');
+      resolve({
+        balance: cells[0],
+        lastWin: cells[2],
+        total: document.querySelector('.dp-win-total strong')?.textContent ?? '',
+        record: document.querySelector('.dp-play-record-line')?.textContent ?? '',
+      });
+    }));
+  }));
+
+  // Only the stake has moved. Nothing on screen states the payout yet.
+  expect(during.balance).toBe('1,980 VC');
+  expect(during.lastWin).toBe('0 VC');
+  expect(during.total).toBe('—');
+  expect(during.record).toBe('');
+
+  await expect(page.getByRole('button', { name: 'Spin', exact: true })).toBeEnabled();
+  const after = await readout();
+  expect(after.lastWin).toBe('244 VC');
+  expect(after.balance).toBe('2,224 VC');
+  expect(after.total).toContain('+');
+  expect(after.record).toContain('1 paid spin');
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 test('the play record accumulates locally and is labelled as browser-only', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });

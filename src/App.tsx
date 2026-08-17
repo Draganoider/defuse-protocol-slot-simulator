@@ -229,13 +229,27 @@ export function App() {
   const featureSpinsPlayed = useRef(0);
   const reducedMotion = useReducedMotion();
 
-  const finishPresentation = useCallback((nextPhase: PresentationPhase, durationMs: number) => {
+  /**
+   * Enters the next phase and applies everything the player is allowed to see only once
+   * the reels have finished settling. The result itself is already committed; this defers
+   * the readouts so a payout is not legible from the scoreboard before it is revealed.
+   */
+  const finishPresentation = useCallback((
+    nextPhase: PresentationPhase,
+    durationMs: number,
+    reveal: () => void,
+  ) => {
     if (presentationTimer.current !== undefined) window.clearTimeout(presentationTimer.current);
-    if (reducedMotion) {
+    const settle = () => {
+      presentationTimer.current = undefined;
+      reveal();
       setPhase(nextPhase);
+    };
+    if (reducedMotion) {
+      settle();
       return;
     }
-    presentationTimer.current = window.setTimeout(() => setPhase(nextPhase), durationMs);
+    presentationTimer.current = window.setTimeout(settle, durationMs);
   }, [reducedMotion]);
 
   useEffect(() => {
@@ -283,7 +297,8 @@ export function App() {
     });
     setSpinTiming(timing);
     setGrid(transposeGrid(result.evaluatedGrid));
-    setLastWin(result.totalPayout);
+    // The award stays hidden until the reveal; only the stake has left the balance so far.
+    setLastWin(0);
     setHighlightedCells(winningCells(result));
     setHighlightedPaths(winningPaths(result));
     setLastReplayId(replayId(result));
@@ -302,8 +317,18 @@ export function App() {
     });
     playSpinAudio(reducedMotion, timing);
     presentAudioResult(result, reducedMotion, timing.presentationMs);
-    finishPresentation(nextPhase, timing.presentationMs);
-  }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion]);
+    finishPresentation(nextPhase, timing.presentationMs, () => {
+      setLastWin(result.totalPayout);
+      if (result.totalPayout > 0) setBalance((current) => current + result.totalPayout);
+      trackSpin({
+        wager: result.wager,
+        payout: result.totalPayout,
+        paid: result.mode === 'base',
+        enteredFeature: Boolean(result.bonusOffer),
+        developerGenerated: result.developerGenerated,
+      });
+    });
+  }, [finishPresentation, playSpinAudio, presentAudioResult, reducedMotion, trackSpin]);
 
   const handleSpin = useCallback(() => {
     const now = performance.now();
@@ -323,13 +348,6 @@ export function App() {
       featureTotalWin.current += transition.result.totalPayout;
       featureSpinsPlayed.current += 1;
       setSession(transition.session);
-      setBalance((current) => current + transition.result.totalPayout);
-      trackSpin({
-        wager: transition.result.wager,
-        payout: transition.result.totalPayout,
-        paid: false,
-        developerGenerated: transition.result.developerGenerated,
-      });
       showResult(transition.result, transition.session.phase === 'bonus' ? 'bonus' : 'result');
       if (transition.session.phase !== 'bonus' && activeRoute) {
         setFeatureSummary({ route: activeRoute, totalWin: featureTotalWin.current, spinsPlayed: featureSpinsPlayed.current });
@@ -352,16 +370,10 @@ export function App() {
     const transition = spinBase(ordinarySession);
     setForcedFixture(false);
     setSession(transition.session);
-    setBalance((current) => current - ordinarySession.wager + transition.result.totalPayout);
-    trackSpin({
-      wager: ordinarySession.wager,
-      payout: transition.result.totalPayout,
-      paid: true,
-      enteredFeature: Boolean(transition.result.bonusOffer),
-      developerGenerated: transition.result.developerGenerated,
-    });
+    // The stake leaves immediately, the way a real cabinet debits before the reels run.
+    setBalance((current) => current - ordinarySession.wager);
     showResult(transition.result, transition.session.phase === 'bonus-choice' ? 'bonus-choice' : 'result');
-  }, [balance, finishFeatureAudio, phase, session, showResult, trackSpin]);
+  }, [balance, finishFeatureAudio, phase, session, showResult]);
 
   const handleChooseBonus = useCallback((route: BonusRoute) => {
     if (session.phase !== 'bonus-choice') return;
